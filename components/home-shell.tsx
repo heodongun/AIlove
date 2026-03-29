@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   startTransition,
   useDeferredValue,
@@ -58,11 +59,13 @@ export function HomeShell({
   initialDetail: RoomDetailPayload | null;
   initialDetailError: string | null;
 }) {
+  const router = useRouter();
   const [rooms, setRooms] = useState(initialRooms);
   const [query, setQuery] = useState(initialFilters.q);
   const [activeSlug, setActiveSlug] = useState(
     initialDetail?.room.slug ?? initialRooms[0]?.slug ?? null,
   );
+  const [isCompactLayout, setIsCompactLayout] = useState(false);
   const [detail, setDetail] = useState<RoomDetailPayload | null>(initialDetail);
   const [roomsError, setRoomsError] = useState(initialError);
   const [detailError, setDetailError] = useState(initialDetailError);
@@ -302,10 +305,24 @@ export function HomeShell({
   const refreshPreview = async () => {
     await fetchRooms({ silent: true });
 
-    if (activeSlug) {
+    if (activeSlug && !isCompactLayout) {
       await fetchRoomDetail(activeSlug, { silent: true });
     }
   };
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 1023px)");
+    const syncLayout = () => {
+      setIsCompactLayout(mediaQuery.matches);
+    };
+
+    syncLayout();
+    mediaQuery.addEventListener("change", syncLayout);
+
+    return () => {
+      mediaQuery.removeEventListener("change", syncLayout);
+    };
+  }, []);
 
   useEffect(() => {
     void refreshRooms({ forceSelection: true });
@@ -325,22 +342,34 @@ export function HomeShell({
       return;
     }
 
+    if (isCompactLayout) {
+      return;
+    }
+
     if (detail?.room.slug === activeSlug) {
       return;
     }
 
     void loadRoomDetail(activeSlug);
-  }, [activeSlug, detail?.room.slug]);
+  }, [activeSlug, detail?.room.slug, isCompactLayout]);
 
   useEffect(() => {
+    if (isCompactLayout) {
+      return;
+    }
+
     const intervalId = window.setInterval(() => {
       void refreshActiveUpdates();
     }, 8_000);
 
     return () => window.clearInterval(intervalId);
-  }, [activeSlug, detail?.room.slug]);
+  }, [activeSlug, detail?.room.slug, isCompactLayout]);
 
   useEffect(() => {
+    if (isCompactLayout) {
+      return;
+    }
+
     if (!activeSlug || !activeDetailSlug || activeDetailSlug !== activeSlug) {
       return;
     }
@@ -411,6 +440,7 @@ export function HomeShell({
     activeDetailSlug,
     detailCursor.after,
     detailCursor.afterId,
+    isCompactLayout,
   ]);
 
   const visibleRooms = rooms.filter((room) => {
@@ -445,18 +475,19 @@ export function HomeShell({
       <div className="messenger-app">
         <MessengerRail roomCount={rooms.length} />
 
-        <section className="flex min-h-0 flex-col overflow-hidden border-r border-[color:var(--line)] bg-[color:var(--sidebar)]">
+        <section className="flex min-h-0 flex-col overflow-hidden border-r border-[color:var(--line)] bg-[color:var(--sidebar)] lg:max-w-[360px]">
           <SidebarHeader
             actions={
               <>
                 <ActionChipButton
+                  className="flex-1 sm:flex-none"
                   disabled={isRoomsLoading}
                   label={isRoomsLoading ? "불러오는 중" : "새로고침"}
                   onClick={() => {
                     void fetchRooms();
                   }}
                 />
-                <ThemeToggle />
+                <ThemeToggle compact={isCompactLayout} />
               </>
             }
             onChangeQuery={setQuery}
@@ -496,7 +527,14 @@ export function HomeShell({
                 <RoomListItem
                   key={room.id}
                   active={room.slug === activeRoom?.slug}
-                  onSelect={setActiveSlug}
+                  onSelect={(slug) => {
+                    if (isCompactLayout) {
+                      router.push(`/rooms/${slug}`);
+                      return;
+                    }
+
+                    setActiveSlug(slug);
+                  }}
                   room={room}
                 />
               ))
@@ -504,12 +542,13 @@ export function HomeShell({
           </div>
         </section>
 
-        <section className="flex min-h-0 flex-col overflow-hidden bg-[color:var(--thread-pane)]">
+        <section className="hidden min-h-0 flex-col overflow-hidden bg-[color:var(--thread-pane)] lg:flex">
           {detail && activeRoom ? (
             <>
               <ConversationHeader
                 actions={
                   <ActionChipButton
+                    className="min-w-[96px]"
                     disabled={isDetailLoading}
                     label={isDetailRefreshing ? "확인 중" : "지금 확인"}
                     onClick={() => {
@@ -553,7 +592,7 @@ export function HomeShell({
               <ReadOnlyComposer
                 cta={
                   <Link
-                    className="inline-flex min-h-10 items-center justify-center rounded-full bg-[var(--composer-button)] px-4 text-[13px] font-semibold text-[var(--composer-button-text)]"
+                    className="inline-flex min-h-10 w-full items-center justify-center rounded-full bg-[var(--composer-button)] px-4 text-[13px] font-semibold text-[var(--composer-button-text)] sm:w-auto"
                     href={`/rooms/${detail.room.slug}`}
                   >
                     입장
@@ -562,6 +601,7 @@ export function HomeShell({
                 isRefreshing={isDetailRefreshing}
                 secondaryAction={
                   <ActionChipButton
+                    className="w-full sm:w-auto"
                     label="지금 확인"
                     onClick={() => {
                       void refreshPreview();

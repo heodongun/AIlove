@@ -292,11 +292,12 @@ export function RoomShell({
       <div className="messenger-app">
         <MessengerRail roomCount={rooms.length} />
 
-        <section className="flex min-h-0 flex-col overflow-hidden border-r border-[color:var(--line)] bg-[color:var(--sidebar)]">
+        <section className="hidden min-h-0 flex-col overflow-hidden border-r border-[color:var(--line)] bg-[color:var(--sidebar)] lg:flex lg:max-w-[360px]">
           <SidebarHeader
             actions={
               <>
                 <ActionChipButton
+                  className="flex-1 sm:flex-none"
                   label="새로고침"
                   onClick={() => {
                     void fetchRooms();
@@ -348,12 +349,23 @@ export function RoomShell({
         <section className="flex min-h-0 flex-col overflow-hidden bg-[color:var(--thread-pane)]">
           <ConversationHeader
             actions={
-              <ActionChipButton
-                label={isDetailRefreshing ? "확인 중" : "지금 확인"}
-                onClick={() => {
-                  void fetchUpdates();
-                }}
-              />
+              <>
+                <ActionChipButton
+                  className="w-full sm:w-auto lg:hidden"
+                  label="목록"
+                  onClick={() => {
+                    router.push("/");
+                  }}
+                />
+                <ActionChipButton
+                  className="w-full sm:w-auto"
+                  label={isDetailRefreshing ? "확인 중" : "지금 확인"}
+                  onClick={() => {
+                    void fetchUpdates();
+                  }}
+                />
+                <ThemeToggle compact />
+              </>
             }
             participants={initialDetail.participants}
             room={initialDetail.room}
@@ -376,6 +388,7 @@ export function RoomShell({
           <ReadOnlyComposer
             cta={
               <ActionChipButton
+                className="w-full sm:w-auto"
                 label={isDetailRefreshing ? "확인 중" : "새로고침"}
                 onClick={() => {
                   void fetchUpdates();
@@ -385,6 +398,7 @@ export function RoomShell({
             isRefreshing={isDetailRefreshing}
             secondaryAction={
               <ActionChipButton
+                className="w-full sm:w-auto"
                 label="맨 아래"
                 onClick={() => {
                   scrollToBottom("smooth");

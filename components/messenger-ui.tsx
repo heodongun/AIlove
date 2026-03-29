@@ -82,14 +82,19 @@ export function ActionChipButton({
   label,
   onClick,
   disabled,
+  className,
 }: {
   label: string;
   onClick?: () => void;
   disabled?: boolean;
+  className?: string;
 }) {
   return (
     <button
-      className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-full border border-[color:var(--line-strong)] bg-[var(--action-surface)] px-3.5 text-[13px] font-medium text-[var(--foreground)] hover:bg-[var(--action-surface-hover)] disabled:cursor-default disabled:opacity-55"
+      className={cn(
+        "inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-full border border-[color:var(--line-strong)] bg-[var(--action-surface)] px-3.5 text-[13px] font-medium text-[var(--foreground)] hover:bg-[var(--action-surface-hover)] disabled:cursor-default disabled:opacity-55",
+        className,
+      )}
       disabled={disabled}
       onClick={onClick}
       type="button"
@@ -188,7 +193,7 @@ export function RoomListItem({
   return (
     <button
       className={cn(
-        "group flex w-full items-start gap-3 rounded-2xl px-4 py-3 text-left",
+        "group flex min-h-[88px] w-full items-start gap-3 rounded-2xl px-4 py-3 text-left sm:min-h-[96px]",
         active ? "bg-[var(--sidebar-selected)]" : "hover:bg-[var(--sidebar-hover)]",
       )}
       onClick={() => onSelect?.(room.slug)}
@@ -233,10 +238,10 @@ export function SidebarHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="border-b border-[color:var(--line)] px-5 py-4">
+    <div className="border-b border-[color:var(--line)] px-4 py-4 sm:px-5">
       <div className="mb-4">
         <div className="flex min-w-0 items-center gap-2">
-          <h1 className="text-[27px] font-bold tracking-[-0.03em] text-[var(--foreground)]">
+          <h1 className="text-[24px] font-bold tracking-[-0.03em] text-[var(--foreground)] sm:text-[27px]">
             채팅
           </h1>
           <span className="rounded-full bg-[var(--rail-active)] px-2 py-0.5 text-[11px] font-semibold text-[#1d1a10]">
@@ -266,7 +271,7 @@ export function SidebarHeader({
 
 function ParticipantLine({ participant }: { participant: Participant }) {
   return (
-    <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-[color:var(--line)] bg-[var(--participant-surface)] px-3 py-2 shadow-[var(--shadow-soft)]">
+    <div className="flex min-w-[15rem] items-center gap-3 rounded-2xl border border-[color:var(--line)] bg-[var(--participant-surface)] px-3 py-2 shadow-[var(--shadow-soft)] sm:min-w-0">
       <ParticipantAvatar participant={participant} size={28} />
       <div className="min-w-0">
         <p className="truncate text-[14px] font-semibold text-[var(--foreground)]">
@@ -292,27 +297,27 @@ export function ConversationHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header className="border-b border-[color:var(--line)] bg-[color:var(--thread-header)] px-5 py-4 md:px-6">
+    <header className="border-b border-[color:var(--line)] bg-[color:var(--thread-header)] px-4 py-4 sm:px-5 md:px-6">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-3">
             <ParticipantStack participants={participants} />
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h2 className="truncate text-[24px] font-bold tracking-[-0.03em] text-[var(--foreground)]">
+                <h2 className="truncate text-[20px] font-bold tracking-[-0.03em] text-[var(--foreground)] sm:text-[24px]">
                   {room.title}
                 </h2>
                 <span className="text-[13px] text-[var(--subtle-foreground)]">
                   {participants.length}
                 </span>
               </div>
-              <p className="truncate text-[13px] text-[var(--subtle-foreground)]">
+              <p className="mt-0.5 text-[13px] leading-5 text-[var(--subtle-foreground)] sm:truncate">
                 {room.subtitle || room.description || "AI 대화가 계속 이어지는 읽기 전용 방"}
               </p>
             </div>
           </div>
 
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 xl:grid-cols-3">
             {participants.map((participant) => (
               <ParticipantLine key={participant.id} participant={participant} />
             ))}
@@ -371,7 +376,7 @@ function MessageBubble({
   if (isRight) {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[min(80vw,32rem)]">
+        <div className="max-w-[min(82vw,32rem)] sm:max-w-[min(78vw,32rem)]">
           {speaker ? (
             <p className="mb-1 text-right text-[13px] font-semibold text-[var(--foreground)]">
               {speaker.displayName}
@@ -391,7 +396,7 @@ function MessageBubble({
   return (
     <div className="flex gap-3">
       {speaker ? <ParticipantAvatar participant={speaker} size={40} /> : null}
-      <div className="max-w-[min(80vw,32rem)]">
+      <div className="max-w-[min(82vw,32rem)] sm:max-w-[min(78vw,32rem)]">
         {speaker ? (
           <p className="mb-1 text-[13px] font-semibold text-[var(--foreground)]">
             {speaker.displayName}
@@ -422,7 +427,7 @@ export function ChatTimeline({
   return (
     <div
       ref={scrollRef}
-      className="thread-scroll room-wallpaper flex-1 overflow-y-auto px-4 py-5 md:px-6"
+      className="thread-scroll room-wallpaper flex-1 overflow-y-auto px-3 py-4 sm:px-4 sm:py-5 md:px-6"
     >
       <div className="mx-auto max-w-4xl space-y-4">
         {messages.length === 0 ? (
@@ -471,7 +476,7 @@ export function ReadOnlyComposer({
   secondaryAction?: ReactNode;
 }) {
   return (
-    <div className="border-t border-[color:var(--line)] bg-[color:var(--composer-bg)] px-4 py-4 md:px-5">
+    <div className="border-t border-[color:var(--line)] bg-[color:var(--composer-bg)] px-3 py-3 sm:px-4 md:px-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
         <div className="flex min-h-[56px] flex-1 items-center rounded-2xl border border-[color:var(--line)] bg-[var(--composer-input)] px-4 text-[14px] text-[var(--subtle-foreground)]">
           <span className="mr-3 rounded-full bg-[var(--rail-active)] px-2 py-0.5 text-[11px] font-semibold text-[#1d1a10]">
@@ -482,7 +487,7 @@ export function ReadOnlyComposer({
             : "읽기 전용 관전 모드입니다. 새 메시지는 자동으로 반영됩니다."}
         </div>
 
-        <div className="flex items-center gap-2 self-end lg:self-auto">
+        <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end lg:w-auto lg:self-auto">
           {secondaryAction}
           {cta ? (
             cta
