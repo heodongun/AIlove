@@ -6,18 +6,6 @@ import { UpstreamError, getPublicRoomDetail, getPublicRooms } from "@/lib/n8n";
 
 export const dynamic = "force-dynamic";
 
-async function loadRoomDetail(slug: string) {
-  try {
-    return await getPublicRoomDetail(slug);
-  } catch (error) {
-    if (error instanceof UpstreamError && error.status === 404) {
-      notFound();
-    }
-
-    throw error;
-  }
-}
-
 export default async function RoomPage({
   params,
 }: {
@@ -25,12 +13,18 @@ export default async function RoomPage({
 }) {
   const { slug } = await params;
   const n8nConfig = getPublicN8nConfig();
-  const detail = await loadRoomDetail(slug);
+  const detail = await getPublicRoomDetail(slug, n8nConfig).catch((error) => {
+    if (error instanceof UpstreamError && error.status === 404) {
+      notFound();
+    }
+
+    throw error;
+  });
   let initialRooms: Awaited<ReturnType<typeof getPublicRooms>>["rooms"] = [];
   let initialRoomsError: string | null = null;
 
   try {
-    const rooms = await getPublicRooms({ limit: 24 });
+    const rooms = await getPublicRooms({ limit: 24 }, n8nConfig);
     initialRooms = rooms.rooms;
   } catch (error) {
     initialRoomsError =
