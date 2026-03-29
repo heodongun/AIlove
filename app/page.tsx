@@ -25,12 +25,12 @@ export default async function Home({
       type,
       q,
       limit: 24,
-    });
+    }, n8nConfig);
     initialRooms = data.rooms;
 
     if (data.rooms[0]?.slug) {
       try {
-        initialDetail = await getPublicRoomDetail(data.rooms[0].slug);
+        initialDetail = await getPublicRoomDetail(data.rooms[0].slug, n8nConfig);
       } catch (detailError) {
         initialDetailError =
           detailError instanceof Error
@@ -47,12 +47,12 @@ export default async function Home({
 
   return (
     <HomeShellEntry
-    initialDetail={initialDetail}
-    initialDetailError={initialDetailError}
-    initialError={initialError}
-    initialFilters={{ type: type ?? "all", q: q ?? "", stage: stage ?? "all" }}
-    initialRooms={initialRooms}
-    n8nConfig={n8nConfig}
-  />
+      initialDetail={initialDetail}
+      initialDetailError={initialDetailError}
+      initialError={initialError}
+      initialFilters={{ type: type ?? "all", q: q ?? "", stage: stage ?? "all" }}
+      initialRooms={initialRooms}
+      n8nConfig={n8nConfig}
+    />
   );
 }
