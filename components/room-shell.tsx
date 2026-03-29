@@ -16,16 +16,25 @@ import {
   ConversationHeader,
   MessengerRail,
   ReadOnlyComposer,
+  RelationshipFilterBar,
   RoomListItem,
   SidebarHeader,
 } from "@/components/messenger-ui";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
+  getConversationRelationshipMeta,
+  getRoomRelationshipMeta,
+  matchesRelationshipFilter,
+  matchesRoomQuery,
   mergeMessages,
   updateRoomsWithLatestMessages,
 } from "@/lib/room-utils";
-import { getPublicRoomUpdates, getPublicRooms } from "@/lib/n8n";
-import type { RoomDetailPayload, RoomSummary } from "@/lib/types";
+import { getPublicRoomDetail, getPublicRoomUpdates, getPublicRooms } from "@/lib/n8n";
+import type {
+  RelationshipFilter,
+  RoomDetailPayload,
+  RoomSummary,
+} from "@/lib/types";
 
 export function RoomShell({
   initialDetail,
@@ -39,6 +48,7 @@ export function RoomShell({
   const router = useRouter();
   const [rooms, setRooms] = useState(initialRooms);
   const [query, setQuery] = useState("");
+  const [relationshipFilter, setRelationshipFilter] = useState<RelationshipFilter>("all");
   const [roomsError, setRoomsError] = useState(initialRoomsError);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [messages, setMessages] = useState(initialDetail.messages);
@@ -46,6 +56,22 @@ export function RoomShell({
   const [isDetailRefreshing, setIsDetailRefreshing] = useState(false);
   const deferredQuery = useDeferredValue(query);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const roomInsightsRefreshAtRef = useRef(0);
+  const [roomInsights, setRoomInsights] = useState<
+    Record<string, ReturnType<typeof getRoomRelationshipMeta>>
+  >(() => {
+    const base = Object.fromEntries(
+      initialRooms.map((room) => [room.slug, getRoomRelationshipMeta(room)]),
+    );
+
+    base[initialDetail.room.slug] = getConversationRelationshipMeta(
+      initialDetail.messages,
+      initialDetail.participants,
+      initialDetail.room.roomType,
+    );
+
+    return base;
+  });
 
   const scrollToBottom = (behavior: ScrollBehavior = "auto") => {
     const container = scrollRef.current;
@@ -71,18 +97,50 @@ export function RoomShell({
   };
 
   const fetchRooms = async () => {
-    const params = new URLSearchParams();
-    params.set("limit", "24");
-
-    if (deferredQuery.trim()) {
-      params.set("q", deferredQuery.trim());
-    }
-
     try {
       const payload = await getPublicRooms({
         limit: 24,
         q: deferredQuery.trim() || undefined,
       });
+      const shouldRefreshInsights =
+        Date.now() - roomInsightsRefreshAtRef.current > 15_000;
+
+      if (shouldRefreshInsights) {
+        roomInsightsRefreshAtRef.current = Date.now();
+
+        void Promise.allSettled(
+          payload.rooms.map(async (room) => {
+            const roomDetail = await getPublicRoomDetail(room.slug);
+
+            return [
+              room.slug,
+              getConversationRelationshipMeta(
+                roomDetail.messages,
+                roomDetail.participants,
+                roomDetail.room.roomType,
+              ),
+            ] as const;
+          }),
+        ).then((results) => {
+          startTransition(() => {
+            setRoomInsights((current) => {
+              const next = { ...current };
+
+              for (const result of results) {
+                if (result.status !== "fulfilled") {
+                  continue;
+                }
+
+                const [slug, meta] = result.value;
+                next[slug] = meta;
+              }
+
+              return next;
+            });
+          });
+        });
+      }
+
       setRooms(payload.rooms);
       setRoomsError(null);
     } catch (error) {
@@ -116,8 +174,10 @@ export function RoomShell({
       });
 
       if (payload.messages.length > 0) {
+        const nextMessages = mergeMessages(messages, payload.messages);
+
         startTransition(() => {
-          setMessages((current) => mergeMessages(current, payload.messages));
+          setMessages(nextMessages);
           setServerTime(payload.serverTime);
           setRooms((current) =>
             updateRoomsWithLatestMessages(
@@ -126,6 +186,14 @@ export function RoomShell({
               payload.messages,
             ),
           );
+          setRoomInsights((current) => ({
+            ...current,
+            [initialDetail.room.slug]: getConversationRelationshipMeta(
+              nextMessages,
+              initialDetail.participants,
+              initialDetail.room.roomType,
+            ),
+          }));
         });
 
         if (wasPinned) {
@@ -172,25 +240,14 @@ export function RoomShell({
   }, []);
 
   const visibleRooms = rooms.filter((room) => {
-    const q = deferredQuery.trim().toLowerCase();
-
-    if (!q) {
-      return true;
-    }
-
-    const text = [
-      room.title,
-      room.subtitle,
-      room.description,
-      room.lastMessagePreview,
-      ...room.participants.map((participant) => participant.displayName),
-      ...room.participants.map((participant) => participant.bio ?? ""),
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-
-    return text.includes(q);
+    return (
+      matchesRelationshipFilter(
+        room,
+        relationshipFilter,
+        roomInsights[room.slug] ?? getRoomRelationshipMeta(room),
+      ) &&
+      matchesRoomQuery(room, deferredQuery)
+    );
   });
 
   return (
@@ -211,6 +268,12 @@ export function RoomShell({
                 />
                 <ThemeToggle />
               </>
+            }
+            filters={
+              <RelationshipFilterBar
+                activeFilter={relationshipFilter}
+                onSelect={setRelationshipFilter}
+              />
             }
             onChangeQuery={setQuery}
             query={query}
@@ -245,6 +308,7 @@ export function RoomShell({
                       router.push(`/rooms/${slug}`);
                     }
                   }}
+                  relationshipMeta={roomInsights[room.slug]}
                   room={room}
                 />
               ))

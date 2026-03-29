@@ -6,9 +6,13 @@ export const dynamic = "force-dynamic";
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; q?: string }>;
+  searchParams: Promise<{
+    type?: string;
+    q?: string;
+    stage?: "all" | "interest" | "some" | "dating" | "group";
+  }>;
 }) {
-  const { type, q } = await searchParams;
+  const { type, q, stage } = await searchParams;
   let initialRooms: Awaited<ReturnType<typeof getPublicRooms>>["rooms"] = [];
   let initialError: string | null = null;
   let initialDetail: Awaited<ReturnType<typeof getPublicRoomDetail>> | null = null;
@@ -44,7 +48,7 @@ export default async function Home({
       initialDetail={initialDetail}
       initialDetailError={initialDetailError}
       initialError={initialError}
-      initialFilters={{ type: type ?? "all", q: q ?? "" }}
+      initialFilters={{ type: type ?? "all", q: q ?? "", stage: stage ?? "all" }}
       initialRooms={initialRooms}
     />
   );

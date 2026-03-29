@@ -17,11 +17,16 @@ import {
   ConversationHeader,
   MessengerRail,
   ReadOnlyComposer,
+  RelationshipFilterBar,
   RoomListItem,
   SidebarHeader,
 } from "@/components/messenger-ui";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
+  getConversationRelationshipMeta,
+  getRoomRelationshipMeta,
+  matchesRelationshipFilter,
+  matchesRoomQuery,
   mergeMessages,
   updateRoomsWithLatestMessages,
 } from "@/lib/room-utils";
@@ -30,7 +35,11 @@ import {
   getPublicRoomUpdates,
   getPublicRooms,
 } from "@/lib/n8n";
-import type { RoomDetailPayload, RoomSummary } from "@/lib/types";
+import type {
+  RelationshipFilter,
+  RoomDetailPayload,
+  RoomSummary,
+} from "@/lib/types";
 
 function ThreadPlaceholder() {
   return (
@@ -59,6 +68,7 @@ export function HomeShell({
   initialFilters: {
     type: string;
     q: string;
+    stage: RelationshipFilter;
   };
   initialDetail: RoomDetailPayload | null;
   initialDetailError: string | null;
@@ -66,6 +76,9 @@ export function HomeShell({
   const router = useRouter();
   const [rooms, setRooms] = useState(initialRooms);
   const [query, setQuery] = useState(initialFilters.q);
+  const [relationshipFilter, setRelationshipFilter] = useState<RelationshipFilter>(
+    initialFilters.stage,
+  );
   const [activeSlug, setActiveSlug] = useState(
     initialDetail?.room.slug ?? initialRooms[0]?.slug ?? null,
   );
@@ -82,6 +95,24 @@ export function HomeShell({
   const [isDetailRefreshing, setIsDetailRefreshing] = useState(false);
   const deferredQuery = useDeferredValue(query);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const roomInsightsRefreshAtRef = useRef(0);
+  const [roomInsights, setRoomInsights] = useState<
+    Record<string, ReturnType<typeof getRoomRelationshipMeta>>
+  >(() => {
+    const base = Object.fromEntries(
+      initialRooms.map((room) => [room.slug, getRoomRelationshipMeta(room)]),
+    );
+
+    if (initialDetail) {
+      base[initialDetail.room.slug] = getConversationRelationshipMeta(
+        initialDetail.messages,
+        initialDetail.participants,
+        initialDetail.room.roomType,
+      );
+    }
+
+    return base;
+  });
 
   const scrollToBottom = (behavior: ScrollBehavior = "auto") => {
     const container = scrollRef.current;
@@ -117,11 +148,7 @@ export function HomeShell({
       setIsRoomsLoading(rooms.length === 0);
     }
 
-    const params = new URLSearchParams();
-    params.set("limit", "24");
-
     if (deferredQuery.trim()) {
-      params.set("q", deferredQuery.trim());
     }
 
     try {
@@ -130,6 +157,44 @@ export function HomeShell({
         q: deferredQuery.trim() || undefined,
       });
       const nextRooms = payload.rooms;
+      const shouldRefreshInsights =
+        Date.now() - roomInsightsRefreshAtRef.current > 15_000 || !silent;
+
+      if (shouldRefreshInsights) {
+        roomInsightsRefreshAtRef.current = Date.now();
+
+        void Promise.allSettled(
+          nextRooms.map(async (room) => {
+            const roomDetail = await getPublicRoomDetail(room.slug);
+
+            return [
+              room.slug,
+              getConversationRelationshipMeta(
+                roomDetail.messages,
+                roomDetail.participants,
+                roomDetail.room.roomType,
+              ),
+            ] as const;
+          }),
+        ).then((results) => {
+          startTransition(() => {
+            setRoomInsights((current) => {
+              const next = { ...current };
+
+              for (const result of results) {
+                if (result.status !== "fulfilled") {
+                  continue;
+                }
+
+                const [slug, meta] = result.value;
+                next[slug] = meta;
+              }
+
+              return next;
+            });
+          });
+        });
+      }
 
       startTransition(() => {
         setRooms(nextRooms);
@@ -179,6 +244,14 @@ export function HomeShell({
       startTransition(() => {
         setDetail(payload);
         setDetailError(null);
+        setRoomInsights((current) => ({
+          ...current,
+          [slug]: getConversationRelationshipMeta(
+            payload.messages,
+            payload.participants,
+            payload.room.roomType,
+          ),
+        }));
       });
       window.requestAnimationFrame(() => scrollToBottom("auto"));
     } catch (error) {
@@ -218,6 +291,8 @@ export function HomeShell({
       });
 
       if (payload.messages.length > 0) {
+        const nextMessages = mergeMessages(detail.messages, payload.messages);
+
         startTransition(() => {
           setDetail((current) => {
             if (!current || current.room.slug !== activeSlug) {
@@ -226,13 +301,21 @@ export function HomeShell({
 
             return {
               ...current,
-              messages: mergeMessages(current.messages, payload.messages),
+              messages: nextMessages,
               serverTime: payload.serverTime,
             };
           });
           setRooms((current) =>
             updateRoomsWithLatestMessages(current, activeSlug, payload.messages),
           );
+          setRoomInsights((current) => ({
+            ...current,
+            [activeSlug]: getConversationRelationshipMeta(
+              nextMessages,
+              detail.participants,
+              detail.room.roomType,
+            ),
+          }));
         });
 
         if (wasPinned) {
@@ -327,26 +410,25 @@ export function HomeShell({
   }, [activeSlug, detail?.room.slug, isCompactLayout]);
 
   const visibleRooms = rooms.filter((room) => {
-    const q = deferredQuery.trim().toLowerCase();
+    return (
+      matchesRelationshipFilter(
+        room,
+        relationshipFilter,
+        roomInsights[room.slug] ?? getRoomRelationshipMeta(room),
+      ) &&
+      matchesRoomQuery(room, deferredQuery)
+    );
+  });
 
-    if (!q) {
-      return true;
+  useEffect(() => {
+    if (!visibleRooms.length) {
+      return;
     }
 
-    const text = [
-      room.title,
-      room.subtitle,
-      room.description,
-      room.lastMessagePreview,
-      ...room.participants.map((participant) => participant.displayName),
-      ...room.participants.map((participant) => participant.bio ?? ""),
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-
-    return text.includes(q);
-  });
+    if (!activeSlug || !visibleRooms.some((room) => room.slug === activeSlug)) {
+      setActiveSlug(visibleRooms[0]?.slug ?? null);
+    }
+  }, [activeSlug, visibleRooms]);
 
   const activeRoom =
     visibleRooms.find((room) => room.slug === activeSlug) ??
@@ -372,6 +454,12 @@ export function HomeShell({
                 />
                 <ThemeToggle compact={isCompactLayout} />
               </>
+            }
+            filters={
+              <RelationshipFilterBar
+                activeFilter={relationshipFilter}
+                onSelect={setRelationshipFilter}
+              />
             }
             onChangeQuery={setQuery}
             query={query}
@@ -418,6 +506,7 @@ export function HomeShell({
 
                     setActiveSlug(slug);
                   }}
+                  relationshipMeta={roomInsights[room.slug]}
                   room={room}
                 />
               ))

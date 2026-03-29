@@ -6,15 +6,21 @@ import {
   formatDayLabel,
   formatRelativeTime,
   formatSidebarTime,
-  getAffectionLabel,
-  getAffectionScore,
   getAvatarLabel,
   getAvatarPalette,
+  getConversationRelationshipMeta,
+  getRoomRelationshipMeta,
   sameDay,
   shortenText,
   toKoreaDateTimeAttr,
 } from "@/lib/room-utils";
-import type { Message, Participant, RoomMeta, RoomSummary } from "@/lib/types";
+import type {
+  Message,
+  Participant,
+  RelationshipFilter,
+  RoomMeta,
+  RoomSummary,
+} from "@/lib/types";
 
 function cn(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
@@ -86,16 +92,21 @@ export function ActionChipButton({
   onClick,
   disabled,
   className,
+  active = false,
 }: {
   label: string;
   onClick?: () => void;
   disabled?: boolean;
   className?: string;
+  active?: boolean;
 }) {
   return (
     <button
       className={cn(
-        "inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-full border border-[color:var(--line-strong)] bg-[var(--action-surface)] px-3.5 text-[13px] font-medium text-[var(--foreground)] hover:bg-[var(--action-surface-hover)] disabled:cursor-default disabled:opacity-55",
+        "inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-full border px-3.5 text-[13px] font-medium transition-colors disabled:cursor-default disabled:opacity-55",
+        active
+          ? "border-[var(--bubble-self)] bg-[var(--bubble-self)] text-[var(--bubble-self-text)]"
+          : "border-[color:var(--line-strong)] bg-[var(--action-surface)] text-[var(--foreground)] hover:bg-[var(--action-surface-hover)]",
         className,
       )}
       disabled={disabled}
@@ -188,11 +199,15 @@ export function RoomListItem({
   room,
   active,
   onSelect,
+  relationshipMeta,
 }: {
   room: RoomSummary;
   active: boolean;
   onSelect?: (slug: string) => void;
+  relationshipMeta?: ReturnType<typeof getRoomRelationshipMeta>;
 }) {
+  const roomRelationshipMeta = relationshipMeta ?? getRoomRelationshipMeta(room);
+
   return (
     <button
       className={cn(
@@ -221,9 +236,20 @@ export function RoomListItem({
           </span>
         </div>
 
-        <p className="mt-2 truncate text-[13px] text-[var(--muted-foreground)]">
-          {shortenText(room.lastMessagePreview || "아직 새 메시지가 없어요.", 42)}
-        </p>
+        <div className="mt-2 flex items-start justify-between gap-3">
+          <p className="min-w-0 flex-1 truncate text-[13px] text-[var(--muted-foreground)]">
+              {shortenText(room.lastMessagePreview || "아직 새 메시지가 없어요.", 42)}
+            </p>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="rounded-full border border-[color:var(--line)] bg-[var(--search-bg)] px-2 py-0.5 text-[10px] font-semibold text-[var(--subtle-foreground)]">
+              {roomRelationshipMeta.label}
+            </span>
+            <span className="text-[12px] font-semibold text-[var(--foreground)]">
+              {roomRelationshipMeta.score}
+            </span>
+          </div>
+        </div>
       </div>
     </button>
   );
@@ -234,11 +260,13 @@ export function SidebarHeader({
   onChangeQuery,
   roomCount,
   actions,
+  filters,
 }: {
   query: string;
   onChangeQuery: (value: string) => void;
   roomCount: number;
   actions?: ReactNode;
+  filters?: ReactNode;
 }) {
   return (
     <div className="border-b border-[color:var(--line)] px-4 py-4 sm:px-5">
@@ -263,6 +291,8 @@ export function SidebarHeader({
           value={query}
         />
       </label>
+
+      {filters ? <div className="mt-3 flex gap-2 overflow-x-auto pb-1">{filters}</div> : null}
 
       <div className="mt-3 flex items-center justify-between text-[12px] text-[var(--subtle-foreground)]">
         <span>공개 채팅 {roomCount}개</span>
@@ -301,8 +331,11 @@ export function ConversationHeader({
   serverTime: string;
   actions?: ReactNode;
 }) {
-  const affectionScore = getAffectionScore(messages, participants, room.roomType);
-  const affectionLabel = getAffectionLabel(affectionScore, room.roomType);
+  const relationshipMeta = getConversationRelationshipMeta(
+    messages,
+    participants,
+    room.roomType,
+  );
   const summary = buildConversationSummary(messages, participants, room.roomType);
 
   return (
@@ -316,6 +349,9 @@ export function ConversationHeader({
                 <h2 className="truncate text-[20px] font-bold tracking-[-0.03em] text-[var(--foreground)] sm:text-[24px]">
                   {room.title}
                 </h2>
+                <span className="rounded-full border border-[color:var(--line)] bg-[var(--search-bg)] px-2.5 py-1 text-[11px] font-semibold text-[var(--foreground)]">
+                  {relationshipMeta.label}
+                </span>
                 <span className="text-[13px] text-[var(--subtle-foreground)]">
                   {participants.length}
                 </span>
@@ -354,7 +390,7 @@ export function ConversationHeader({
                 </div>
                 <div className="text-right">
                   <div className="text-[30px] font-bold tracking-[-0.04em] text-[var(--foreground)]">
-                    {affectionScore}
+                    {relationshipMeta.score}
                   </div>
                   <div className="text-[12px] font-medium text-[var(--subtle-foreground)]">
                     / 100
@@ -365,12 +401,14 @@ export function ConversationHeader({
               <div className="mt-3 h-2 rounded-full bg-[var(--search-bg)]">
                 <div
                   className="h-full rounded-full bg-[var(--bubble-self)] transition-[width] duration-300"
-                  style={{ width: `${affectionScore}%` }}
+                  style={{ width: `${relationshipMeta.score}%` }}
                 />
               </div>
 
               <p className="mt-2 text-[13px] leading-5 text-[var(--foreground)]">
-                {affectionLabel}
+                {relationshipMeta.stage === "group"
+                  ? relationshipMeta.tone
+                  : `${relationshipMeta.label} 단계, ${relationshipMeta.tone}`}
               </p>
             </section>
           </div>
@@ -385,6 +423,32 @@ export function ConversationHeader({
       </div>
     </header>
   );
+}
+
+export function RelationshipFilterBar({
+  activeFilter,
+  onSelect,
+}: {
+  activeFilter: RelationshipFilter;
+  onSelect: (value: RelationshipFilter) => void;
+}) {
+  const filters: Array<{ value: RelationshipFilter; label: string }> = [
+    { value: "all", label: "전체" },
+    { value: "interest", label: "사귀기 전" },
+    { value: "some", label: "썸" },
+    { value: "dating", label: "연애중" },
+    { value: "group", label: "단톡" },
+  ];
+
+  return filters.map((filter) => (
+    <ActionChipButton
+      key={filter.value}
+      active={activeFilter === filter.value}
+      className="min-h-9 px-3 text-[12px]"
+      label={filter.label}
+      onClick={() => onSelect(filter.value)}
+    />
+  ));
 }
 
 function SystemNotice({ content }: { content: string }) {

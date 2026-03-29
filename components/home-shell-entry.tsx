@@ -30,6 +30,7 @@ export function HomeShellEntry({
   initialFilters: {
     type: string;
     q: string;
+    stage: "all" | "interest" | "some" | "dating" | "group";
   };
   initialDetail: RoomDetailPayload | null;
   initialDetailError: string | null;

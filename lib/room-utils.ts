@@ -2,6 +2,8 @@ import type {
   Message,
   MessageCursor,
   Participant,
+  RelationshipFilter,
+  RelationshipStage,
   RoomSummary,
   RoomType,
 } from "@/lib/types";
@@ -219,6 +221,29 @@ export function roomTraitHighlights(participants: Participant[]) {
   return Array.from(unique);
 }
 
+export function matchesRoomQuery(room: RoomSummary, query: string) {
+  const q = query.trim().toLowerCase();
+
+  if (!q) {
+    return true;
+  }
+
+  const text = [
+    room.title,
+    room.subtitle,
+    room.description,
+    room.lastMessagePreview,
+    ...room.participants.map((participant) => participant.displayName),
+    ...room.participants.map((participant) => participant.bio ?? ""),
+    ...room.participants.flatMap((participant) => participant.traits),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return text.includes(q);
+}
+
 export function buildConversationHighlights(
   messages: Message[],
   fallback = "새 메시지가 들어오면 이곳에 대화 흐름이 요약됩니다.",
@@ -239,6 +264,12 @@ export function buildConversationHighlights(
 
 function compactText(value: string) {
   return value.replace(/\s+/g, " ").trim();
+}
+
+function countKeywordHits(source: string, keywords: string[]) {
+  return keywords.reduce((total, keyword) => {
+    return total + (source.includes(keyword) ? 1 : 0);
+  }, 0);
 }
 
 function topTopicKeywords(messages: Message[], participants: Participant[]) {
@@ -370,6 +401,236 @@ function consecutiveReplyCount(messages: Message[]) {
   return total;
 }
 
+function dominantSpeakerPenalty(messages: Message[]) {
+  const counts = new Map<string, number>();
+
+  for (const message of messages) {
+    if (!message.speakerHandle) {
+      continue;
+    }
+
+    counts.set(message.speakerHandle, (counts.get(message.speakerHandle) ?? 0) + 1);
+  }
+
+  const values = [...counts.values()].sort((left, right) => right - left);
+  const top = values[0] ?? 0;
+  const next = values[1] ?? 0;
+
+  if (top >= 5 && top - next >= 3) {
+    return 8;
+  }
+
+  if (top >= 4 && top - next >= 2) {
+    return 4;
+  }
+
+  return 0;
+}
+
+function dryMessagePenalty(messages: Message[]) {
+  return messages.reduce((total, message) => {
+    const content = compactText(message.content);
+    const normalized = content.toLowerCase();
+
+    if (
+      content.length <= 7 &&
+      ["응", "그래", "ㅇㅋ", "알겠어", "바빠", "몰라", "됐어", "나중에"].some((keyword) =>
+        normalized.includes(keyword),
+      )
+    ) {
+      return total + 3;
+    }
+
+    if (content.length <= 12 && !/[!?~]/.test(content)) {
+      return total + 1;
+    }
+
+    return total;
+  }, 0);
+}
+
+function hesitationPenalty(source: string) {
+  return countKeywordHits(source, [
+    "애매",
+    "아직",
+    "모르겠",
+    "조심",
+    "눈치",
+    "선 넘",
+    "거리",
+    "괜히",
+    "바빠",
+    "나중에",
+    "천천히",
+    "부담",
+    "그만",
+    "아닌 것 같",
+    "오해",
+    "식었",
+    "멀어",
+  ]);
+}
+
+function affectionBoost(source: string) {
+  return countKeywordHits(source, [
+    "좋아",
+    "설레",
+    "보고 싶",
+    "다정",
+    "기억",
+    "솔직",
+    "진심",
+    "티",
+    "들켰",
+    "오래 남",
+    "가까워",
+    "기다렸",
+    "계속 생각",
+    "신경 쓰여",
+    "웃게",
+    "반칙",
+    "챙기",
+    "듣고 싶",
+    "보고 있",
+    "먼저 찾",
+  ]);
+}
+
+function roomSummaryText(room: RoomSummary) {
+  return compactText(
+    [
+      room.title,
+      room.subtitle,
+      room.description,
+      room.lastMessagePreview,
+      ...room.participants.map((participant) => participant.displayName),
+      ...room.participants.map((participant) => participant.bio ?? ""),
+      ...room.participants.flatMap((participant) => participant.traits),
+      ...room.participants.map((participant) => participant.roleLabel ?? ""),
+    ]
+      .filter(Boolean)
+      .join(" "),
+  ).toLowerCase();
+}
+
+export function getRelationshipStage(score: number, roomType: RoomType): RelationshipStage {
+  if (roomType === "group") {
+    return "group";
+  }
+
+  if (score >= 66) {
+    return "dating";
+  }
+
+  if (score >= 46) {
+    return "some";
+  }
+
+  return "interest";
+}
+
+export function matchesRelationshipFilter(
+  room: RoomSummary,
+  filter: RelationshipFilter,
+  relationshipMeta = getRoomRelationshipMeta(room),
+) {
+  if (filter === "all") {
+    return true;
+  }
+
+  return relationshipMeta.stage === filter;
+}
+
+export function getRelationshipStageLabel(stage: RelationshipStage) {
+  switch (stage) {
+    case "dating":
+      return "연애중";
+    case "some":
+      return "썸";
+    case "interest":
+      return "사귀기 전";
+    case "group":
+      return "단톡";
+    default:
+      return "전체";
+  }
+}
+
+export function getRelationshipStageTone(stage: RelationshipStage) {
+  switch (stage) {
+    case "dating":
+      return "감정선이 이미 자주 오가는 상태";
+    case "some":
+      return "밀고 당기면서도 호감이 들키는 상태";
+    case "interest":
+      return "좋아하는 마음은 있지만 아직 선을 넘지 않는 상태";
+    case "group":
+      return "여러 커플이 서로 엮이며 분위기를 만드는 상태";
+    default:
+      return "";
+  }
+}
+
+export function getRoomAffectionScore(room: RoomSummary) {
+  if (room.roomType === "group") {
+    const source = roomSummaryText(room);
+    const lively = countKeywordHits(source, [
+      "같이",
+      "다같이",
+      "끼어",
+      "반응",
+      "웃",
+      "분위기",
+      "텐션",
+      "장난",
+      "번갈아",
+    ]);
+    const muted = hesitationPenalty(source);
+
+    return Math.max(10, Math.min(100, 28 + lively * 6 - muted * 2));
+  }
+
+  const source = roomSummaryText(room);
+  let score = 24;
+  score += Math.min(32, affectionBoost(source) * 6);
+  score += Math.min(12, countKeywordHits(source, ["질투", "들켰", "반칙", "신경 쓰", "기다"]) * 4);
+  score -= Math.min(22, hesitationPenalty(source) * 4);
+
+  if (room.lastMessagePreview.trim().length <= 10) {
+    score -= 4;
+  }
+
+  return Math.max(0, Math.min(100, score));
+}
+
+export function getRoomRelationshipMeta(room: RoomSummary) {
+  const score = getRoomAffectionScore(room);
+  const stage = getRelationshipStage(score, room.roomType);
+
+  return {
+    score,
+    stage,
+    label: getRelationshipStageLabel(stage),
+    tone: getRelationshipStageTone(stage),
+  };
+}
+
+export function getConversationRelationshipMeta(
+  messages: Message[],
+  participants: Participant[],
+  roomType: RoomType,
+) {
+  const score = getAffectionScore(messages, participants, roomType);
+  const stage = getRelationshipStage(score, roomType);
+
+  return {
+    score,
+    stage,
+    label: getRelationshipStageLabel(stage),
+    tone: getRelationshipStageTone(stage),
+  };
+}
+
 export function getAffectionScore(
   messages: Message[],
   participants: Participant[],
@@ -381,34 +642,30 @@ export function getAffectionScore(
     return roomType === "couple" ? 18 : 12;
   }
 
-  const combined = compactText(textMessages.map((message) => message.content).join(" "));
-  const keywordHits = [
-    "좋아",
-    "설레",
-    "보고 싶",
-    "다정",
-    "기억",
-    "솔직",
-    "분명",
-    "진심",
-    "티",
-    "들켰",
-    "오래 남",
-    "기울",
-    "가까워",
-    "애매하게 안 할게",
-  ].reduce((total, keyword) => total + (combined.includes(keyword) ? 1 : 0), 0);
+  const combined = compactText(textMessages.map((message) => message.content).join(" ")).toLowerCase();
+  const warmHits = affectionBoost(combined);
+  const guardedHits = hesitationPenalty(combined);
   const replies = consecutiveReplyCount(textMessages);
   const nameMentions = countNameMentions(textMessages, participants);
   const uniqueSpeakers = new Set(
     textMessages.map((message) => message.speakerHandle).filter(Boolean),
   ).size;
+  const dominantPenalty = dominantSpeakerPenalty(textMessages);
+  const dryPenalty = dryMessagePenalty(textMessages);
+  const longSilencePenalty =
+    textMessages.length <= 3 && roomType === "couple" ? 10 : textMessages.length <= 5 ? 4 : 0;
+  const noWarmthPenalty = warmHits === 0 ? (roomType === "couple" ? 14 : 8) : 0;
 
-  let score = roomType === "couple" ? 28 : 22;
-  score += Math.min(24, replies * 4);
-  score += Math.min(26, keywordHits * 5);
+  let score = roomType === "couple" ? 26 : 24;
+  score += Math.min(24, replies * 3);
+  score += Math.min(28, warmHits * 5);
   score += Math.min(14, nameMentions * 3);
-  score += Math.min(10, uniqueSpeakers * 2);
+  score += Math.min(12, uniqueSpeakers * 2);
+  score -= Math.min(30, guardedHits * (roomType === "couple" ? 5 : 3));
+  score -= dominantPenalty;
+  score -= Math.min(12, dryPenalty);
+  score -= longSilencePenalty;
+  score -= noWarmthPenalty;
 
   if (roomType === "group" && uniqueSpeakers >= 4) {
     score += 8;
@@ -434,19 +691,23 @@ export function getAffectionLabel(score: number, roomType: RoomType) {
     return "아직은 조심스럽게 탐색 중";
   }
 
-  if (score >= 80) {
+  if (score >= 82) {
     return "감정선이 꽤 짙어진 상태";
   }
 
-  if (score >= 60) {
+  if (score >= 64) {
     return "서로 호감이 선명해지는 중";
   }
 
-  if (score >= 40) {
+  if (score >= 38) {
     return "좋아하는 티가 조금씩 나는 단계";
   }
 
-  return "아직은 조심스럽게 간 보는 단계";
+  if (score >= 22) {
+    return "사귀기 전, 분위기를 재보는 단계";
+  }
+
+  return "아직은 거리감이 남아 있는 단계";
 }
 
 export function buildConversationSummary(

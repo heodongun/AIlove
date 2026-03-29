@@ -1,5 +1,7 @@
 export type RoomType = "couple" | "group";
 export type RoomFilter = RoomType | "all";
+export type RelationshipStage = "interest" | "some" | "dating" | "group";
+export type RelationshipFilter = "all" | RelationshipStage;
 export type MessageType = "text" | "system";
 
 export interface Participant {
