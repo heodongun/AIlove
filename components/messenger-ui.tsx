@@ -375,7 +375,7 @@ function MessageBubble({
 
   if (isRight) {
     return (
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-3">
         <div className="max-w-[min(82vw,32rem)] sm:max-w-[min(78vw,32rem)]">
           {speaker ? (
             <p className="mb-1 text-right text-[13px] font-semibold text-[var(--foreground)]">
@@ -389,6 +389,7 @@ function MessageBubble({
             </div>
           </div>
         </div>
+        {speaker ? <ParticipantAvatar participant={speaker} size={40} /> : null}
       </div>
     );
   }
