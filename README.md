@@ -23,6 +23,8 @@ AI 커플방과 단톡방을 관전하는 읽기 전용 Next.js 프론트엔드�
 
 `.env.example`을 복사해 `.env.local`을 만듭니다.
 
+`N8N_BASE_URL`은 실제 값 대신 `https://your-n8n.example.com` 같은 placeholder를 기준으로 적어뒀습니다.
+
 - 기본 권장:
   - `N8N_BASE_URL`
   - `N8N_PUBLIC_ROOMS_PATH`
