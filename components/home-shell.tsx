@@ -22,11 +22,15 @@ import {
 } from "@/components/messenger-ui";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
-  latestMessageCursor,
   mergeMessages,
   updateRoomsWithLatestMessages,
 } from "@/lib/room-utils";
-import type { Message, RoomDetailPayload, RoomSummary } from "@/lib/types";
+import {
+  getPublicRoomDetail,
+  getPublicRoomUpdates,
+  getPublicRooms,
+} from "@/lib/n8n";
+import type { RoomDetailPayload, RoomSummary } from "@/lib/types";
 
 function ThreadPlaceholder() {
   return (
@@ -78,8 +82,6 @@ export function HomeShell({
   const [isDetailRefreshing, setIsDetailRefreshing] = useState(false);
   const deferredQuery = useDeferredValue(query);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const activeDetailSlug = detail?.room.slug ?? null;
-  const detailCursor = detail ? latestMessageCursor(detail.messages) : {};
 
   const scrollToBottom = (behavior: ScrollBehavior = "auto") => {
     const container = scrollRef.current;
@@ -123,22 +125,11 @@ export function HomeShell({
     }
 
     try {
-      const response = await fetch(`/api/rooms?${params.toString()}`, {
-        cache: "no-store",
+      const payload = await getPublicRooms({
+        limit: 24,
+        q: deferredQuery.trim() || undefined,
       });
-      const payload = (await response.json()) as
-        | { rooms: RoomSummary[] }
-        | { message?: string };
-
-      if (!response.ok) {
-        throw new Error(
-          "message" in payload && payload.message
-            ? payload.message
-            : "채팅방 목록을 가져오지 못했어요.",
-        );
-      }
-
-      const nextRooms = "rooms" in payload ? payload.rooms : [];
+      const nextRooms = payload.rooms;
 
       startTransition(() => {
         setRooms(nextRooms);
@@ -183,28 +174,13 @@ export function HomeShell({
     }
 
     try {
-      const response = await fetch(`/api/rooms/${slug}`, {
-        cache: "no-store",
+      const payload = await getPublicRoomDetail(slug);
+
+      startTransition(() => {
+        setDetail(payload);
+        setDetailError(null);
       });
-      const payload = (await response.json()) as
-        | RoomDetailPayload
-        | { message?: string };
-
-      if (!response.ok) {
-        throw new Error(
-          "message" in payload && payload.message
-            ? payload.message
-            : "대화방을 열지 못했어요.",
-        );
-      }
-
-      if ("room" in payload) {
-        startTransition(() => {
-          setDetail(payload);
-          setDetailError(null);
-        });
-        window.requestAnimationFrame(() => scrollToBottom("auto"));
-      }
+      window.requestAnimationFrame(() => scrollToBottom("auto"));
     } catch (error) {
       setDetailError(
         error instanceof Error ? error.message : "대화방을 열지 못했어요.",
@@ -236,47 +212,13 @@ export function HomeShell({
     }
 
     try {
-      const response = await fetch(
-        `/api/rooms/${activeSlug}/updates?${params.toString()}`,
-        {
-          cache: "no-store",
-        },
-      );
-      const payload = (await response.json()) as
-        | { messages: Message[]; serverTime: string }
-        | { message?: string };
+      const payload = await getPublicRoomUpdates(activeSlug, {
+        after: params.get("after") ?? undefined,
+        afterId: params.get("afterId") ?? undefined,
+      });
 
-      if (!response.ok) {
-        throw new Error(
-          "message" in payload && payload.message
-            ? payload.message
-            : "새 메시지를 가져오지 못했어요.",
-        );
-      }
-
-      if ("messages" in payload) {
-        if (payload.messages.length > 0) {
-          startTransition(() => {
-            setDetail((current) => {
-              if (!current || current.room.slug !== activeSlug) {
-                return current;
-              }
-
-              return {
-                ...current,
-                messages: mergeMessages(current.messages, payload.messages),
-                serverTime: payload.serverTime,
-              };
-            });
-            setRooms((current) =>
-              updateRoomsWithLatestMessages(current, activeSlug, payload.messages),
-            );
-          });
-
-          if (wasPinned) {
-            window.requestAnimationFrame(() => scrollToBottom("smooth"));
-          }
-        } else {
+      if (payload.messages.length > 0) {
+        startTransition(() => {
           setDetail((current) => {
             if (!current || current.room.slug !== activeSlug) {
               return current;
@@ -284,13 +226,32 @@ export function HomeShell({
 
             return {
               ...current,
+              messages: mergeMessages(current.messages, payload.messages),
               serverTime: payload.serverTime,
             };
           });
-        }
+          setRooms((current) =>
+            updateRoomsWithLatestMessages(current, activeSlug, payload.messages),
+          );
+        });
 
-        setDetailError(null);
+        if (wasPinned) {
+          window.requestAnimationFrame(() => scrollToBottom("smooth"));
+        }
+      } else {
+        setDetail((current) => {
+          if (!current || current.room.slug !== activeSlug) {
+            return current;
+          }
+
+          return {
+            ...current,
+            serverTime: payload.serverTime,
+          };
+        });
       }
+
+      setDetailError(null);
     } catch (error) {
       setDetailError(
         error instanceof Error ? error.message : "새 메시지를 가져오지 못했어요.",
@@ -360,88 +321,10 @@ export function HomeShell({
 
     const intervalId = window.setInterval(() => {
       void refreshActiveUpdates();
-    }, 8_000);
+    }, 4_000);
 
     return () => window.clearInterval(intervalId);
   }, [activeSlug, detail?.room.slug, isCompactLayout]);
-
-  useEffect(() => {
-    if (isCompactLayout) {
-      return;
-    }
-
-    if (!activeSlug || !activeDetailSlug || activeDetailSlug !== activeSlug) {
-      return;
-    }
-
-    const wasPinnedOnMessage = () => isPinnedToBottom();
-    const params = new URLSearchParams();
-
-    if (detailCursor.after) {
-      params.set("after", detailCursor.after);
-    }
-
-    if (detailCursor.afterId) {
-      params.set("afterId", detailCursor.afterId);
-    }
-
-    const stream = new EventSource(
-      `/api/rooms/${activeSlug}/stream${params.toString() ? `?${params.toString()}` : ""}`,
-    );
-
-    const handleMessages = (event: MessageEvent<string>) => {
-      const payload = JSON.parse(event.data) as {
-        messages: Message[];
-        serverTime: string;
-      };
-
-      if (!payload.messages.length) {
-        return;
-      }
-
-      const wasPinned = wasPinnedOnMessage();
-
-      startTransition(() => {
-        setDetail((current) => {
-          if (!current || current.room.slug !== activeSlug) {
-            return current;
-          }
-
-          return {
-            ...current,
-            messages: mergeMessages(current.messages, payload.messages),
-            serverTime: payload.serverTime,
-          };
-        });
-        setRooms((current) =>
-          updateRoomsWithLatestMessages(current, activeSlug, payload.messages),
-        );
-      });
-
-      if (wasPinned) {
-        window.requestAnimationFrame(() => scrollToBottom("smooth"));
-      }
-    };
-
-    const handleError = () => {
-      stream.close();
-    };
-
-    stream.addEventListener("messages", handleMessages as EventListener);
-    stream.addEventListener("error", handleError);
-
-    return () => {
-      stream.removeEventListener("messages", handleMessages as EventListener);
-      stream.removeEventListener("error", handleError);
-      stream.close();
-    };
-  }, [
-    activeSlug,
-    activeDetailSlug,
-    detailCursor.after,
-    detailCursor.afterId,
-    isCompactLayout,
-  ]);
 
   const visibleRooms = rooms.filter((room) => {
     const q = deferredQuery.trim().toLowerCase();

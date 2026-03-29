@@ -21,11 +21,11 @@ import {
 } from "@/components/messenger-ui";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
-  latestMessageCursor,
   mergeMessages,
   updateRoomsWithLatestMessages,
 } from "@/lib/room-utils";
-import type { Message, RoomDetailPayload, RoomSummary } from "@/lib/types";
+import { getPublicRoomUpdates, getPublicRooms } from "@/lib/n8n";
+import type { RoomDetailPayload, RoomSummary } from "@/lib/types";
 
 export function RoomShell({
   initialDetail,
@@ -46,8 +46,6 @@ export function RoomShell({
   const [isDetailRefreshing, setIsDetailRefreshing] = useState(false);
   const deferredQuery = useDeferredValue(query);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const lastMessage = messages.at(-1) ?? null;
-  const messageCursor = latestMessageCursor(messages);
 
   const scrollToBottom = (behavior: ScrollBehavior = "auto") => {
     const container = scrollRef.current;
@@ -81,25 +79,12 @@ export function RoomShell({
     }
 
     try {
-      const response = await fetch(`/api/rooms?${params.toString()}`, {
-        cache: "no-store",
+      const payload = await getPublicRooms({
+        limit: 24,
+        q: deferredQuery.trim() || undefined,
       });
-      const payload = (await response.json()) as
-        | { rooms: RoomSummary[] }
-        | { message?: string };
-
-      if (!response.ok) {
-        throw new Error(
-          "message" in payload && payload.message
-            ? payload.message
-            : "채팅방 목록을 불러오지 못했어요.",
-        );
-      }
-
-      if ("rooms" in payload) {
-        setRooms(payload.rooms);
-        setRoomsError(null);
-      }
+      setRooms(payload.rooms);
+      setRoomsError(null);
     } catch (error) {
       setRoomsError(
         error instanceof Error ? error.message : "채팅방 목록을 불러오지 못했어요.",
@@ -125,47 +110,32 @@ export function RoomShell({
     }
 
     try {
-      const response = await fetch(
-        `/api/rooms/${initialDetail.room.slug}/updates?${params.toString()}`,
-        {
-          cache: "no-store",
-        },
-      );
-      const payload = (await response.json()) as
-        | { messages: Message[]; serverTime: string }
-        | { message?: string };
+      const payload = await getPublicRoomUpdates(initialDetail.room.slug, {
+        after: params.get("after") ?? undefined,
+        afterId: params.get("afterId") ?? undefined,
+      });
 
-      if (!response.ok) {
-        throw new Error(
-          "message" in payload && payload.message
-            ? payload.message
-            : "새 메시지를 가져오지 못했어요.",
-        );
-      }
-
-      if ("messages" in payload) {
-        if (payload.messages.length > 0) {
-          startTransition(() => {
-            setMessages((current) => mergeMessages(current, payload.messages));
-            setServerTime(payload.serverTime);
-            setRooms((current) =>
-              updateRoomsWithLatestMessages(
-                current,
-                initialDetail.room.slug,
-                payload.messages,
-              ),
-            );
-          });
-
-          if (wasPinned) {
-            window.requestAnimationFrame(() => scrollToBottom("smooth"));
-          }
-        } else {
+      if (payload.messages.length > 0) {
+        startTransition(() => {
+          setMessages((current) => mergeMessages(current, payload.messages));
           setServerTime(payload.serverTime);
-        }
+          setRooms((current) =>
+            updateRoomsWithLatestMessages(
+              current,
+              initialDetail.room.slug,
+              payload.messages,
+            ),
+          );
+        });
 
-        setDetailError(null);
+        if (wasPinned) {
+          window.requestAnimationFrame(() => scrollToBottom("smooth"));
+        }
+      } else {
+        setServerTime(payload.serverTime);
       }
+
+      setDetailError(null);
     } catch (error) {
       setDetailError(
         error instanceof Error ? error.message : "새 메시지를 가져오지 못했어요.",
@@ -196,74 +166,10 @@ export function RoomShell({
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       void refreshUpdates();
-    }, 8_000);
+    }, 4_000);
 
     return () => window.clearInterval(intervalId);
   }, []);
-
-  useEffect(() => {
-    const params = new URLSearchParams();
-
-    if (messageCursor.after) {
-      params.set("after", messageCursor.after);
-    }
-
-    if (messageCursor.afterId) {
-      params.set("afterId", messageCursor.afterId);
-    }
-
-    const stream = new EventSource(
-      `/api/rooms/${initialDetail.room.slug}/stream${params.toString() ? `?${params.toString()}` : ""}`,
-    );
-
-    const handleMessages = (event: MessageEvent<string>) => {
-      const payload = JSON.parse(event.data) as {
-        messages: Message[];
-        serverTime: string;
-      };
-
-      if (!payload.messages.length) {
-        return;
-      }
-
-      const wasPinned = isPinnedToBottom();
-
-      startTransition(() => {
-        setMessages((current) => mergeMessages(current, payload.messages));
-        setServerTime(payload.serverTime);
-        setRooms((current) =>
-          updateRoomsWithLatestMessages(
-            current,
-            initialDetail.room.slug,
-            payload.messages,
-          ),
-        );
-      });
-
-      if (wasPinned) {
-        window.requestAnimationFrame(() => scrollToBottom("smooth"));
-      }
-    };
-
-    const handleError = () => {
-      stream.close();
-    };
-
-    stream.addEventListener("messages", handleMessages as EventListener);
-    stream.addEventListener("error", handleError);
-
-    return () => {
-      stream.removeEventListener("messages", handleMessages as EventListener);
-      stream.removeEventListener("error", handleError);
-      stream.close();
-    };
-  }, [
-    initialDetail.room.slug,
-    lastMessage?.id,
-    lastMessage?.postedAt,
-    messageCursor.after,
-    messageCursor.afterId,
-  ]);
 
   const visibleRooms = rooms.filter((room) => {
     const q = deferredQuery.trim().toLowerCase();
