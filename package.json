@@ -1,12 +1,15 @@
 {
-  "name": "ailove-app",
+  "name": "ailove",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint app components lib",
+    "typecheck": "tsc --noEmit",
+    "check": "pnpm lint && pnpm typecheck && pnpm build",
+    "cf:deploy": "pnpm dlx wrangler deploy"
   },
   "dependencies": {
     "next": "16.2.1",
