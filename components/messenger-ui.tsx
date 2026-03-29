@@ -9,6 +9,7 @@ import {
   getAvatarPalette,
   sameDay,
   shortenText,
+  toKoreaDateTimeAttr,
 } from "@/lib/room-utils";
 import type { Message, Participant, RoomMeta, RoomSummary } from "@/lib/types";
 
@@ -349,7 +350,7 @@ function BubbleTime({ postedAt }: { postedAt: string }) {
     <time
       suppressHydrationWarning
       className="text-[12px] text-[var(--time-foreground)]"
-      dateTime={postedAt}
+      dateTime={toKoreaDateTimeAttr(postedAt)}
     >
       {formatClockTime(postedAt)}
     </time>

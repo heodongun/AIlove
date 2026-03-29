@@ -2,13 +2,50 @@ import type { Message, MessageCursor, Participant, RoomSummary } from "@/lib/typ
 
 const KOREA_TIMEZONE = "Asia/Seoul";
 
+export function parseKoreaDate(input: string | Date) {
+  if (input instanceof Date) {
+    return input;
+  }
+
+  const value = String(input ?? "").trim();
+
+  if (!value) {
+    return new Date(NaN);
+  }
+
+  if (/([zZ]|[+-]\d{2}:\d{2})$/.test(value)) {
+    return new Date(value);
+  }
+
+  const match = value.match(
+    /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,6}))?)?)?$/,
+  );
+
+  if (match) {
+    const [, date, hour = "00", minute = "00", second = "00", fraction = ""] = match;
+    const millisecond = fraction ? fraction.slice(0, 3).padEnd(3, "0") : "000";
+
+    return new Date(
+      `${date}T${hour}:${minute}:${second}.${millisecond}+09:00`,
+    );
+  }
+
+  return new Date(value);
+}
+
+export function toKoreaDateTimeAttr(input: string | Date) {
+  const date = parseKoreaDate(input);
+
+  return Number.isNaN(date.getTime()) ? String(input) : date.toISOString();
+}
+
 function formatDateKey(input: string | Date) {
   return new Intl.DateTimeFormat("sv-SE", {
     timeZone: KOREA_TIMEZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(new Date(input));
+  }).format(parseKoreaDate(input));
 }
 
 function hashValue(input: string) {
@@ -59,7 +96,7 @@ export function formatRelativeTime(input: string | null) {
     return "방금";
   }
 
-  const date = new Date(input);
+  const date = parseKoreaDate(input);
   const diffMs = Date.now() - date.getTime();
   const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
 
@@ -93,7 +130,7 @@ export function formatClockTime(input: string) {
     timeZone: KOREA_TIMEZONE,
     hour: "numeric",
     minute: "2-digit",
-  }).format(new Date(input));
+  }).format(parseKoreaDate(input));
 }
 
 export function formatSidebarTime(input: string | null) {
@@ -101,7 +138,7 @@ export function formatSidebarTime(input: string | null) {
     return "";
   }
 
-  const date = new Date(input);
+  const date = parseKoreaDate(input);
   const now = new Date();
   const sameDate = formatDateKey(date) === formatDateKey(now);
 
@@ -126,7 +163,7 @@ export function formatDayLabel(input: string) {
     month: "long",
     day: "numeric",
     weekday: "short",
-  }).format(new Date(input));
+  }).format(parseKoreaDate(input));
 }
 
 export function mergeMessages(existing: Message[], incoming: Message[]) {
@@ -141,11 +178,14 @@ export function mergeMessages(existing: Message[], incoming: Message[]) {
   }
 
   return Array.from(deduped.values()).sort((left, right) => {
-    if (left.postedAt === right.postedAt) {
+    const leftTime = parseKoreaDate(left.postedAt).getTime();
+    const rightTime = parseKoreaDate(right.postedAt).getTime();
+
+    if (leftTime === rightTime) {
       return left.id - right.id;
     }
 
-    return left.postedAt.localeCompare(right.postedAt);
+    return leftTime - rightTime;
   });
 }
 
@@ -248,8 +288,8 @@ export function updateRoomsWithLatestMessages(
   });
 
   return nextRooms.sort((left, right) => {
-    const leftTime = left.lastMessageAt ? new Date(left.lastMessageAt).getTime() : 0;
-    const rightTime = right.lastMessageAt ? new Date(right.lastMessageAt).getTime() : 0;
+    const leftTime = left.lastMessageAt ? parseKoreaDate(left.lastMessageAt).getTime() : 0;
+    const rightTime = right.lastMessageAt ? parseKoreaDate(right.lastMessageAt).getTime() : 0;
 
     return rightTime - leftTime;
   });
