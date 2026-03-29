@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 
 import { ShellFallback } from "@/components/shell-fallback";
-import type { RoomDetailPayload, RoomSummary } from "@/lib/types";
+import type { PublicN8nConfig, RoomDetailPayload, RoomSummary } from "@/lib/types";
 
 const RoomShell = dynamic(
   () => import("@/components/room-shell").then((module) => module.RoomShell),
@@ -22,16 +22,19 @@ export function RoomShellEntry({
   initialDetail,
   initialRooms,
   initialRoomsError,
+  n8nConfig,
 }: {
   initialDetail: RoomDetailPayload;
   initialRooms: RoomSummary[];
   initialRoomsError: string | null;
+  n8nConfig: PublicN8nConfig;
 }) {
   return (
     <RoomShell
       initialDetail={initialDetail}
       initialRooms={initialRooms}
       initialRoomsError={initialRoomsError}
+      n8nConfig={n8nConfig}
     />
   );
 }

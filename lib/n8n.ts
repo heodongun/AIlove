@@ -2,6 +2,7 @@ import { getN8nBaseUrl, getN8nPath, interpolatePath } from "@/lib/env";
 import type {
   Message,
   Participant,
+  PublicN8nConfig,
   RoomDetailPayload,
   RoomSummary,
   RoomUpdatesPayload,
@@ -116,8 +117,26 @@ export class UpstreamError extends Error {
   }
 }
 
-async function fetchJson(path: string, query: Record<string, string | number | undefined> = {}) {
-  const url = withQuery(new URL(path, getN8nBaseUrl()), query);
+function resolveConfig(config?: PublicN8nConfig) {
+  if (config) {
+    return config;
+  }
+
+  return {
+    baseUrl: getN8nBaseUrl(),
+    publicRoomsPath: getN8nPath("publicRooms"),
+    publicRoomDetailPath: getN8nPath("publicRoomDetail"),
+    publicRoomUpdatesPath: getN8nPath("publicRoomUpdates"),
+  } satisfies PublicN8nConfig;
+}
+
+async function fetchPublicJson(
+  path: string,
+  query: Record<string, string | number | undefined> = {},
+  config?: PublicN8nConfig,
+) {
+  const resolved = resolveConfig(config);
+  const url = withQuery(new URL(path, resolved.baseUrl), query);
   const response = await fetch(url, {
     cache: "no-store",
     headers: {
@@ -143,8 +162,11 @@ async function fetchJson(path: string, query: Record<string, string | number | u
   return (await response.json()) as Record<string, unknown>;
 }
 
-export async function getPublicRooms(query: RoomsQuery = {}): Promise<RoomsPayload> {
-  const payload = await fetchJson(getN8nPath("publicRooms"), query);
+export async function getPublicRooms(
+  query: RoomsQuery = {},
+  config?: PublicN8nConfig,
+): Promise<RoomsPayload> {
+  const payload = await fetchPublicJson(resolveConfig(config).publicRoomsPath, query, config);
   const rooms = Array.isArray(payload.rooms) ? payload.rooms : [];
 
   return {
@@ -153,9 +175,15 @@ export async function getPublicRooms(query: RoomsQuery = {}): Promise<RoomsPaylo
   };
 }
 
-export async function getPublicRoomDetail(slug: string): Promise<RoomDetailPayload> {
-  const payload = await fetchJson(
-    interpolatePath(getN8nPath("publicRoomDetail"), { slug }),
+export async function getPublicRoomDetail(
+  slug: string,
+  config?: PublicN8nConfig,
+): Promise<RoomDetailPayload> {
+  const resolved = resolveConfig(config);
+  const payload = await fetchPublicJson(
+    interpolatePath(resolved.publicRoomDetailPath, { slug }),
+    {},
+    config,
   );
 
   const roomRaw = payload.room as Record<string, unknown> | undefined;
@@ -192,10 +220,13 @@ export async function getPublicRoomDetail(slug: string): Promise<RoomDetailPaylo
 export async function getPublicRoomUpdates(
   slug: string,
   query: UpdatesQuery = {},
+  config?: PublicN8nConfig,
 ): Promise<RoomUpdatesPayload> {
-  const payload = await fetchJson(
-    interpolatePath(getN8nPath("publicRoomUpdates"), { slug }),
+  const resolved = resolveConfig(config);
+  const payload = await fetchPublicJson(
+    interpolatePath(resolved.publicRoomUpdatesPath, { slug }),
     query,
+    config,
   );
 
   return {

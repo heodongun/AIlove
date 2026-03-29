@@ -36,6 +36,7 @@ import {
   getPublicRooms,
 } from "@/lib/n8n";
 import type {
+  PublicN8nConfig,
   RelationshipFilter,
   RoomDetailPayload,
   RoomSummary,
@@ -62,6 +63,7 @@ export function HomeShell({
   initialFilters,
   initialDetail,
   initialDetailError,
+  n8nConfig,
 }: {
   initialRooms: RoomSummary[];
   initialError: string | null;
@@ -72,6 +74,7 @@ export function HomeShell({
   };
   initialDetail: RoomDetailPayload | null;
   initialDetailError: string | null;
+  n8nConfig: PublicN8nConfig;
 }) {
   const router = useRouter();
   const [rooms, setRooms] = useState(initialRooms);
@@ -148,14 +151,11 @@ export function HomeShell({
       setIsRoomsLoading(rooms.length === 0);
     }
 
-    if (deferredQuery.trim()) {
-    }
-
     try {
       const payload = await getPublicRooms({
         limit: 24,
         q: deferredQuery.trim() || undefined,
-      });
+      }, n8nConfig);
       const nextRooms = payload.rooms;
       const shouldRefreshInsights =
         Date.now() - roomInsightsRefreshAtRef.current > 15_000 || !silent;
@@ -165,7 +165,7 @@ export function HomeShell({
 
         void Promise.allSettled(
           nextRooms.map(async (room) => {
-            const roomDetail = await getPublicRoomDetail(room.slug);
+            const roomDetail = await getPublicRoomDetail(room.slug, n8nConfig);
 
             return [
               room.slug,
@@ -239,7 +239,7 @@ export function HomeShell({
     }
 
     try {
-      const payload = await getPublicRoomDetail(slug);
+      const payload = await getPublicRoomDetail(slug, n8nConfig);
 
       startTransition(() => {
         setDetail(payload);
@@ -288,7 +288,7 @@ export function HomeShell({
       const payload = await getPublicRoomUpdates(activeSlug, {
         after: params.get("after") ?? undefined,
         afterId: params.get("afterId") ?? undefined,
-      });
+      }, n8nConfig);
 
       if (payload.messages.length > 0) {
         const nextMessages = mergeMessages(detail.messages, payload.messages);

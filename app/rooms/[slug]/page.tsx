@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { RoomShellEntry } from "@/components/room-shell-entry";
+import { getPublicN8nConfig } from "@/lib/env";
 import { UpstreamError, getPublicRoomDetail, getPublicRooms } from "@/lib/n8n";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,7 @@ export default async function RoomPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  const n8nConfig = getPublicN8nConfig();
   const detail = await loadRoomDetail(slug);
   let initialRooms: Awaited<ReturnType<typeof getPublicRooms>>["rooms"] = [];
   let initialRoomsError: string | null = null;
@@ -40,6 +42,7 @@ export default async function RoomPage({
       initialDetail={detail}
       initialRooms={initialRooms}
       initialRoomsError={initialRoomsError}
+      n8nConfig={n8nConfig}
     />
   );
 }

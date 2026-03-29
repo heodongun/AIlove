@@ -1,3 +1,5 @@
+import type { PublicN8nConfig } from "@/lib/types";
+
 const DEFAULT_PATHS = {
   publicRooms: "/webhook/ailove/public/rooms",
   publicRoomDetail: "/webhook/PublicDetailWebhook/ailove/public/rooms/:slug",
@@ -44,6 +46,15 @@ export function getN8nPath(name: keyof typeof DEFAULT_PATHS) {
   } as const;
 
   return withLeadingSlash(readEnv(envMap[name], DEFAULT_PATHS[name]));
+}
+
+export function getPublicN8nConfig(): PublicN8nConfig {
+  return {
+    baseUrl: getN8nBaseUrl(),
+    publicRoomsPath: getN8nPath("publicRooms"),
+    publicRoomDetailPath: getN8nPath("publicRoomDetail"),
+    publicRoomUpdatesPath: getN8nPath("publicRoomUpdates"),
+  };
 }
 
 export function interpolatePath(

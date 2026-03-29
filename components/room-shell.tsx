@@ -31,6 +31,7 @@ import {
 } from "@/lib/room-utils";
 import { getPublicRoomDetail, getPublicRoomUpdates, getPublicRooms } from "@/lib/n8n";
 import type {
+  PublicN8nConfig,
   RelationshipFilter,
   RoomDetailPayload,
   RoomSummary,
@@ -40,10 +41,12 @@ export function RoomShell({
   initialDetail,
   initialRooms,
   initialRoomsError,
+  n8nConfig,
 }: {
   initialDetail: RoomDetailPayload;
   initialRooms: RoomSummary[];
   initialRoomsError: string | null;
+  n8nConfig: PublicN8nConfig;
 }) {
   const router = useRouter();
   const [rooms, setRooms] = useState(initialRooms);
@@ -101,7 +104,7 @@ export function RoomShell({
       const payload = await getPublicRooms({
         limit: 24,
         q: deferredQuery.trim() || undefined,
-      });
+      }, n8nConfig);
       const shouldRefreshInsights =
         Date.now() - roomInsightsRefreshAtRef.current > 15_000;
 
@@ -110,7 +113,7 @@ export function RoomShell({
 
         void Promise.allSettled(
           payload.rooms.map(async (room) => {
-            const roomDetail = await getPublicRoomDetail(room.slug);
+            const roomDetail = await getPublicRoomDetail(room.slug, n8nConfig);
 
             return [
               room.slug,
@@ -171,7 +174,7 @@ export function RoomShell({
       const payload = await getPublicRoomUpdates(initialDetail.room.slug, {
         after: params.get("after") ?? undefined,
         afterId: params.get("afterId") ?? undefined,
-      });
+      }, n8nConfig);
 
       if (payload.messages.length > 0) {
         const nextMessages = mergeMessages(messages, payload.messages);

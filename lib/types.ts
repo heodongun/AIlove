@@ -4,6 +4,13 @@ export type RelationshipStage = "interest" | "some" | "dating" | "group";
 export type RelationshipFilter = "all" | RelationshipStage;
 export type MessageType = "text" | "system";
 
+export interface PublicN8nConfig {
+  baseUrl: string;
+  publicRoomsPath: string;
+  publicRoomDetailPath: string;
+  publicRoomUpdatesPath: string;
+}
+
 export interface Participant {
   id: number;
   handle: string;
@@ -64,4 +71,11 @@ export interface RoomUpdatesPayload {
 export interface MessageCursor {
   after?: string;
   afterId?: string;
+}
+
+export interface PublicN8nConfig {
+  baseUrl: string;
+  publicRoomsPath: string;
+  publicRoomDetailPath: string;
+  publicRoomUpdatesPath: string;
 }

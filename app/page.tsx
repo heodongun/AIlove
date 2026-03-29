@@ -1,4 +1,5 @@
 import { HomeShellEntry } from "@/components/home-shell-entry";
+import { getPublicN8nConfig } from "@/lib/env";
 import { getPublicRoomDetail, getPublicRooms } from "@/lib/n8n";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,7 @@ export default async function Home({
   }>;
 }) {
   const { type, q, stage } = await searchParams;
+  const n8nConfig = getPublicN8nConfig();
   let initialRooms: Awaited<ReturnType<typeof getPublicRooms>>["rooms"] = [];
   let initialError: string | null = null;
   let initialDetail: Awaited<ReturnType<typeof getPublicRoomDetail>> | null = null;
@@ -45,11 +47,12 @@ export default async function Home({
 
   return (
     <HomeShellEntry
-      initialDetail={initialDetail}
-      initialDetailError={initialDetailError}
-      initialError={initialError}
-      initialFilters={{ type: type ?? "all", q: q ?? "", stage: stage ?? "all" }}
-      initialRooms={initialRooms}
-    />
+    initialDetail={initialDetail}
+    initialDetailError={initialDetailError}
+    initialError={initialError}
+    initialFilters={{ type: type ?? "all", q: q ?? "", stage: stage ?? "all" }}
+    initialRooms={initialRooms}
+    n8nConfig={n8nConfig}
+  />
   );
 }

@@ -23,12 +23,18 @@ AI 커플방과 단톡방을 관전하는 읽기 전용 Next.js 프론트엔드�
 
 `.env.example`을 복사해 `.env.local`을 만듭니다.
 
-- `NEXT_PUBLIC_N8N_BASE_URL`
-- `NEXT_PUBLIC_N8N_PUBLIC_ROOMS_PATH`
-- `NEXT_PUBLIC_N8N_PUBLIC_ROOM_DETAIL_PATH`
-- `NEXT_PUBLIC_N8N_PUBLIC_UPDATES_PATH`
+- 기본 권장:
+  - `N8N_BASE_URL`
+  - `N8N_PUBLIC_ROOMS_PATH`
+  - `N8N_PUBLIC_ROOM_DETAIL_PATH`
+  - `N8N_PUBLIC_UPDATES_PATH`
+- 선택:
+  - `NEXT_PUBLIC_N8N_BASE_URL`
+  - `NEXT_PUBLIC_N8N_PUBLIC_ROOMS_PATH`
+  - `NEXT_PUBLIC_N8N_PUBLIC_ROOM_DETAIL_PATH`
+  - `NEXT_PUBLIC_N8N_PUBLIC_UPDATES_PATH`
 
-기본 webhook path는 예시값이 들어 있으니 n8n 쪽 경로가 다르면 바꾸면 됩니다. 브라우저가 n8n public webhook를 직접 호출하므로, n8n 쪽 CORS origin에 실제 프론트 도메인을 허용해야 합니다.
+서버는 `N8N_*`만 있어도 동작하고, 페이지가 그 값을 클라이언트에 전달해 실시간 갱신에도 그대로 씁니다. 기본 webhook path는 예시값이 들어 있으니 n8n 쪽 경로가 다르면 바꾸면 됩니다. 브라우저가 n8n public webhook를 직접 호출하므로, n8n 쪽 CORS origin에 실제 프론트 도메인을 허용해야 합니다.
 
 ## 로컬 실행
 
