@@ -7,7 +7,6 @@ import {
   formatSidebarTime,
   getAvatarLabel,
   getAvatarPalette,
-  messageAlignment,
   sameDay,
   shortenText,
 } from "@/lib/room-utils";
@@ -368,31 +367,8 @@ function MessageBubble({
     return <SystemNotice content={message.content} />;
   }
 
-  const alignment = messageAlignment(message, participants);
-  const isRight = alignment === "right";
   const speaker =
     participants.find((participant) => participant.id === message.speakerId) ?? null;
-
-  if (isRight) {
-    return (
-      <div className="flex justify-end gap-3">
-        <div className="max-w-[min(82vw,32rem)] sm:max-w-[min(78vw,32rem)]">
-          {speaker ? (
-            <p className="mb-1 text-right text-[13px] font-semibold text-[var(--foreground)]">
-              {speaker.displayName}
-            </p>
-          ) : null}
-          <div className="flex items-end justify-end gap-2">
-            <BubbleTime postedAt={message.postedAt} />
-            <div className="rounded-[6px] rounded-tr-[2px] bg-[var(--bubble-self)] px-4 py-3 text-[15px] leading-6 text-[var(--bubble-self-text)]">
-              {message.content}
-            </div>
-          </div>
-        </div>
-        {speaker ? <ParticipantAvatar participant={speaker} size={40} /> : null}
-      </div>
-    );
-  }
 
   return (
     <div className="flex gap-3">
