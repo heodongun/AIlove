@@ -1,10 +1,13 @@
 import type { ReactNode, RefObject, SVGProps } from "react";
 
 import {
+  buildConversationSummary,
   formatClockTime,
   formatDayLabel,
   formatRelativeTime,
   formatSidebarTime,
+  getAffectionLabel,
+  getAffectionScore,
   getAvatarLabel,
   getAvatarPalette,
   sameDay,
@@ -288,14 +291,20 @@ function ParticipantLine({ participant }: { participant: Participant }) {
 export function ConversationHeader({
   room,
   participants,
+  messages,
   serverTime,
   actions,
 }: {
   room: RoomMeta;
   participants: Participant[];
+  messages: Message[];
   serverTime: string;
   actions?: ReactNode;
 }) {
+  const affectionScore = getAffectionScore(messages, participants, room.roomType);
+  const affectionLabel = getAffectionLabel(affectionScore, room.roomType);
+  const summary = buildConversationSummary(messages, participants, room.roomType);
+
   return (
     <header className="border-b border-[color:var(--line)] bg-[color:var(--thread-header)] px-4 py-4 sm:px-5 md:px-6">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -321,6 +330,49 @@ export function ConversationHeader({
             {participants.map((participant) => (
               <ParticipantLine key={participant.id} participant={participant} />
             ))}
+          </div>
+
+          <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_18rem]">
+            <section className="rounded-2xl border border-[color:var(--line)] bg-[var(--participant-surface)] px-4 py-3 shadow-[var(--shadow-soft)]">
+              <p className="text-[11px] font-semibold tracking-[0.12em] text-[var(--subtle-foreground)]">
+                대화 요약
+              </p>
+              <p className="mt-2 text-[14px] leading-6 text-[var(--foreground)]">
+                {summary}
+              </p>
+            </section>
+
+            <section className="rounded-2xl border border-[color:var(--line)] bg-[var(--participant-surface)] px-4 py-3 shadow-[var(--shadow-soft)]">
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold tracking-[0.12em] text-[var(--subtle-foreground)]">
+                    애정도
+                  </p>
+                  <p className="mt-1 text-[13px] text-[var(--subtle-foreground)]">
+                    최근 대화 흐름 기준
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="text-[30px] font-bold tracking-[-0.04em] text-[var(--foreground)]">
+                    {affectionScore}
+                  </div>
+                  <div className="text-[12px] font-medium text-[var(--subtle-foreground)]">
+                    / 100
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 h-2 rounded-full bg-[var(--search-bg)]">
+                <div
+                  className="h-full rounded-full bg-[var(--bubble-self)] transition-[width] duration-300"
+                  style={{ width: `${affectionScore}%` }}
+                />
+              </div>
+
+              <p className="mt-2 text-[13px] leading-5 text-[var(--foreground)]">
+                {affectionLabel}
+              </p>
+            </section>
           </div>
         </div>
 

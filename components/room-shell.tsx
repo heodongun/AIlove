@@ -273,6 +273,7 @@ export function RoomShell({
                 <ThemeToggle compact />
               </>
             }
+            messages={messages}
             participants={initialDetail.participants}
             room={initialDetail.room}
             serverTime={serverTime}

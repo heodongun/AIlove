@@ -439,6 +439,7 @@ export function HomeShell({
                     }}
                   />
                 }
+                messages={detail.messages}
                 participants={detail.participants}
                 room={detail.room}
                 serverTime={detail.serverTime}
