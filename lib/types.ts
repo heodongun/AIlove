@@ -36,14 +36,59 @@ export interface PublicN8nConfig {
 
 export type AppSection = "chat" | "hub";
 export type HubFacing = "up" | "right" | "down" | "left";
+export type HubEmotionalState =
+  | "neutral"
+  | "nervous"
+  | "interested"
+  | "avoiding"
+  | "confessing";
+export type HubIntention =
+  | "approach"
+  | "escape"
+  | "wait"
+  | "observe"
+  | "confess"
+  | "interrupt"
+  | "wander";
+export type HubAgentMode = "auto" | "manual";
 export type HubAgentStatus =
   | "idle"
   | "wandering"
   | "pathing"
   | "chatting"
   | "flirting"
-  | "observing";
-export type HubInteractionType = "chat" | "heart" | "spark" | "awkward_pause";
+  | "observing"
+  | "avoiding"
+  | "intercepting"
+  | "lingering"
+  | "waiting"
+  | "confessing";
+export type HubInteractionType =
+  | "chat"
+  | "heart"
+  | "spark"
+  | "awkward_pause"
+  | "confession";
+export type HubEventType =
+  | "conversation"
+  | "bond_increase"
+  | "bond_decrease"
+  | "avoidance_loop"
+  | "confession"
+  | "interruption"
+  | "awkward_silence";
+export type HubLogTone = "soft" | "warm" | "tense" | "dramatic";
+export type HubSceneMode =
+  | "private_talk"
+  | "push_pull"
+  | "cool_off"
+  | "parallel_work"
+  | "slow_approach"
+  | "pair_breakaway"
+  | "triangle_watch"
+  | "bar_circle"
+  | "jealous_pass"
+  | "group_lull";
 export type HubPoiKind =
   | "desk"
   | "sofa"
@@ -154,13 +199,25 @@ export interface HubAgent {
   facing: HubFacing;
   status: HubAgentStatus;
   mood: RelationshipStage;
+  emotionalState: HubEmotionalState;
+  intention: HubIntention;
+  mode: HubAgentMode;
   currentPoiId: string | null;
+  targetAgentId: string | null;
+  targetPoiId: string | null;
   targetTileX: number | null;
   targetTileY: number | null;
   moveStartedAt: number;
   moveDurationMs: number;
   interactionTargetId: string | null;
   sparkle: number;
+  pauseUntil?: number | null;
+  proximityScore?: number;
+  avoidanceScore?: number;
+  sceneMode?: HubSceneMode | null;
+  focusAgentId?: string | null;
+  lingerUntil?: number | null;
+  statusLabel?: string | null;
 }
 
 export interface HubInteraction {
@@ -175,6 +232,38 @@ export interface HubInteraction {
   speakerHandle?: string | null;
   speechText?: string | null;
   emote?: string | null;
+  sceneHint?: string | null;
+}
+
+export interface HubSimulationEvent {
+  id: string;
+  type: HubEventType;
+  title: string;
+  description: string;
+  actorIds: string[];
+  tileX: number;
+  tileY: number;
+  createdAt: number;
+  expiresAt: number;
+  priority: number;
+  pauseMs?: number;
+  dominant?: boolean;
+}
+
+export interface HubStoryLog {
+  id: string;
+  createdAt: number;
+  text: string;
+  tone: HubLogTone;
+  actorIds: string[];
+}
+
+export interface HubCameraState {
+  focusAgentId: string | null;
+  focusTileX: number | null;
+  focusTileY: number | null;
+  zoom: number;
+  reason: "selected" | "event" | "scene" | "free";
 }
 
 export interface HubRoomSummary extends RoomSummary {
@@ -207,11 +296,23 @@ export interface HubAgentUpdate {
   facing?: HubFacing;
   status?: HubAgentStatus;
   mood?: RelationshipStage;
+  emotionalState?: HubEmotionalState;
+  intention?: HubIntention;
+  mode?: HubAgentMode;
+  targetAgentId?: string | null;
+  targetPoiId?: string | null;
   targetTileX?: number | null;
   targetTileY?: number | null;
   currentPoiId?: string | null;
   interactionTargetId?: string | null;
   sparkle?: number;
+  pauseUntil?: number | null;
+  proximityScore?: number;
+  avoidanceScore?: number;
+  sceneMode?: HubSceneMode | null;
+  focusAgentId?: string | null;
+  lingerUntil?: number | null;
+  statusLabel?: string | null;
 }
 
 export interface HubUpdatesPayload {

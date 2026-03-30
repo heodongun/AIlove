@@ -500,7 +500,19 @@ export function buildHubRoomDetailFromRoomDetail(
       facing: spawn.facing ?? defaultFacing(index),
       status: "idle",
       mood: detail.relationshipSnapshot.stage,
+      emotionalState:
+        detail.relationshipSnapshot.stage === "awkward"
+          ? "nervous"
+          : detail.relationshipSnapshot.stage === "flirt" ||
+              detail.relationshipSnapshot.stage === "love" ||
+              detail.relationshipSnapshot.stage === "obsession"
+            ? "interested"
+            : "neutral",
+      intention: "observe",
+      mode: "auto",
       currentPoiId: null,
+      targetAgentId: null,
+      targetPoiId: null,
       targetTileX: null,
       targetTileY: null,
       moveStartedAt: Date.now(),
@@ -511,6 +523,13 @@ export function buildHubRoomDetailFromRoomDetail(
         detail.relationshipSnapshot.stage === "obsession"
           ? 1
           : 0,
+      pauseUntil: null,
+      proximityScore: 0,
+      avoidanceScore: 0,
+      sceneMode: null,
+      focusAgentId: null,
+      lingerUntil: null,
+      statusLabel: "허브를 둘러보는 중",
     };
   });
 
