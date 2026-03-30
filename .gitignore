@@ -35,18 +35,26 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 *.local
+.dev.vars
+.open-next
 
 # vercel
 .vercel
-tmp
-.interface-design
-scripts/ai-room-plans.json
-Dockerfile.ai-loop
-docker-compose.ai-loop.yml
-docker/
-scripts/
-sql/
-.dockerignore
+
+# local backend / ops
+/tmp
+/.interface-design
+/.omc
+/Dockerfile.ai-loop
+/docker-compose.ai-loop.yml
+/docker/
+/scripts/
+/sql/
+/.dockerignore
+/firebase-debug.log
+
+# local runtime config
+/scripts/ai-room-plans.json
 
 # typescript
 *.tsbuildinfo
