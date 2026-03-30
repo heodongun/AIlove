@@ -500,7 +500,12 @@ function normalizeHubAgent(value: Record<string, unknown>): HubAgent {
       value.status === "pathing" ||
       value.status === "chatting" ||
       value.status === "flirting" ||
-      value.status === "observing"
+      value.status === "observing" ||
+      value.status === "avoiding" ||
+      value.status === "intercepting" ||
+      value.status === "lingering" ||
+      value.status === "waiting" ||
+      value.status === "confessing"
         ? value.status
         : "idle",
     mood:
@@ -512,10 +517,43 @@ function normalizeHubAgent(value: Record<string, unknown>): HubAgent {
       value.mood === "group"
         ? value.mood
         : "interest",
+    emotionalState:
+      value.emotionalState === "neutral" ||
+      value.emotionalState === "nervous" ||
+      value.emotionalState === "interested" ||
+      value.emotionalState === "avoiding" ||
+      value.emotionalState === "confessing"
+        ? value.emotionalState
+        : value.emotional_state === "neutral" ||
+            value.emotional_state === "nervous" ||
+            value.emotional_state === "interested" ||
+            value.emotional_state === "avoiding" ||
+            value.emotional_state === "confessing"
+          ? value.emotional_state
+          : "neutral",
+    intention:
+      value.intention === "approach" ||
+      value.intention === "escape" ||
+      value.intention === "wait" ||
+      value.intention === "observe" ||
+      value.intention === "confess" ||
+      value.intention === "interrupt" ||
+      value.intention === "wander"
+        ? value.intention
+        : "observe",
+    mode: value.mode === "manual" ? "manual" : "auto",
     currentPoiId:
       value.currentPoiId === undefined || value.currentPoiId === null
         ? null
         : String(value.currentPoiId),
+    targetAgentId:
+      value.targetAgentId === undefined || value.targetAgentId === null
+        ? null
+        : String(value.targetAgentId),
+    targetPoiId:
+      value.targetPoiId === undefined || value.targetPoiId === null
+        ? null
+        : String(value.targetPoiId),
     targetTileX:
       value.targetTileX === undefined || value.targetTileX === null
         ? null
@@ -531,6 +569,37 @@ function normalizeHubAgent(value: Record<string, unknown>): HubAgent {
         ? null
         : String(value.interactionTargetId),
     sparkle: Number(value.sparkle ?? 0),
+    pauseUntil:
+      value.pauseUntil === undefined || value.pauseUntil === null
+        ? null
+        : Number(value.pauseUntil),
+    proximityScore: Number(value.proximityScore ?? 0),
+    avoidanceScore: Number(value.avoidanceScore ?? 0),
+    sceneMode:
+      value.sceneMode === "private_talk" ||
+      value.sceneMode === "push_pull" ||
+      value.sceneMode === "cool_off" ||
+      value.sceneMode === "parallel_work" ||
+      value.sceneMode === "slow_approach" ||
+      value.sceneMode === "pair_breakaway" ||
+      value.sceneMode === "triangle_watch" ||
+      value.sceneMode === "bar_circle" ||
+      value.sceneMode === "jealous_pass" ||
+      value.sceneMode === "group_lull"
+        ? value.sceneMode
+        : null,
+    focusAgentId:
+      value.focusAgentId === undefined || value.focusAgentId === null
+        ? null
+        : String(value.focusAgentId),
+    lingerUntil:
+      value.lingerUntil === undefined || value.lingerUntil === null
+        ? null
+        : Number(value.lingerUntil),
+    statusLabel:
+      value.statusLabel === undefined || value.statusLabel === null
+        ? null
+        : String(value.statusLabel),
   };
 }
 
@@ -541,7 +610,8 @@ function normalizeHubInteraction(value: Record<string, unknown>): HubInteraction
       value.type === "chat" ||
       value.type === "heart" ||
       value.type === "spark" ||
-      value.type === "awkward_pause"
+      value.type === "awkward_pause" ||
+      value.type === "confession"
         ? value.type
         : "chat",
     agentIds: asArray(value.agentIds ?? value.agent_ids).map((item) => String(item)),
@@ -563,6 +633,10 @@ function normalizeHubInteraction(value: Record<string, unknown>): HubInteraction
         : String(value.speechText),
     emote:
       value.emote === undefined || value.emote === null ? null : String(value.emote),
+    sceneHint:
+      value.sceneHint === undefined || value.sceneHint === null
+        ? null
+        : String(value.sceneHint),
   };
 }
 
@@ -586,7 +660,12 @@ function normalizeHubAgentUpdate(value: Record<string, unknown>): HubAgentUpdate
       value.status === "pathing" ||
       value.status === "chatting" ||
       value.status === "flirting" ||
-      value.status === "observing"
+      value.status === "observing" ||
+      value.status === "avoiding" ||
+      value.status === "intercepting" ||
+      value.status === "lingering" ||
+      value.status === "waiting" ||
+      value.status === "confessing"
         ? value.status
         : undefined,
     mood:
@@ -598,6 +677,37 @@ function normalizeHubAgentUpdate(value: Record<string, unknown>): HubAgentUpdate
       value.mood === "group"
         ? value.mood
         : undefined,
+    emotionalState:
+      value.emotionalState === "neutral" ||
+      value.emotionalState === "nervous" ||
+      value.emotionalState === "interested" ||
+      value.emotionalState === "avoiding" ||
+      value.emotionalState === "confessing"
+        ? value.emotionalState
+        : undefined,
+    intention:
+      value.intention === "approach" ||
+      value.intention === "escape" ||
+      value.intention === "wait" ||
+      value.intention === "observe" ||
+      value.intention === "confess" ||
+      value.intention === "interrupt" ||
+      value.intention === "wander"
+        ? value.intention
+        : undefined,
+    mode: value.mode === "manual" || value.mode === "auto" ? value.mode : undefined,
+    targetAgentId:
+      value.targetAgentId === undefined
+        ? undefined
+        : value.targetAgentId === null
+          ? null
+          : String(value.targetAgentId),
+    targetPoiId:
+      value.targetPoiId === undefined
+        ? undefined
+        : value.targetPoiId === null
+          ? null
+          : String(value.targetPoiId),
     targetTileX:
       value.targetTileX === undefined || value.targetTileX === null
         ? undefined
@@ -616,6 +726,49 @@ function normalizeHubAgentUpdate(value: Record<string, unknown>): HubAgentUpdate
           : String(value.interactionTargetId),
     sparkle:
       value.sparkle === undefined || value.sparkle === null ? undefined : Number(value.sparkle),
+    pauseUntil:
+      value.pauseUntil === undefined || value.pauseUntil === null
+        ? undefined
+        : Number(value.pauseUntil),
+    proximityScore:
+      value.proximityScore === undefined || value.proximityScore === null
+        ? undefined
+        : Number(value.proximityScore),
+    avoidanceScore:
+      value.avoidanceScore === undefined || value.avoidanceScore === null
+        ? undefined
+        : Number(value.avoidanceScore),
+    sceneMode:
+      value.sceneMode === undefined
+        ? undefined
+        : value.sceneMode === "private_talk" ||
+            value.sceneMode === "push_pull" ||
+            value.sceneMode === "cool_off" ||
+            value.sceneMode === "parallel_work" ||
+            value.sceneMode === "slow_approach" ||
+            value.sceneMode === "pair_breakaway" ||
+            value.sceneMode === "triangle_watch" ||
+            value.sceneMode === "bar_circle" ||
+            value.sceneMode === "jealous_pass" ||
+            value.sceneMode === "group_lull"
+          ? value.sceneMode
+          : undefined,
+    focusAgentId:
+      value.focusAgentId === undefined
+        ? undefined
+        : value.focusAgentId === null
+          ? null
+          : String(value.focusAgentId),
+    lingerUntil:
+      value.lingerUntil === undefined || value.lingerUntil === null
+        ? undefined
+        : Number(value.lingerUntil),
+    statusLabel:
+      value.statusLabel === undefined
+        ? undefined
+        : value.statusLabel === null
+          ? null
+          : String(value.statusLabel),
   };
 }
 
