@@ -10,7 +10,14 @@ export default async function Home({
   searchParams: Promise<{
     type?: string;
     q?: string;
-    stage?: "all" | "interest" | "some" | "dating" | "group";
+    stage?:
+      | "all"
+      | "awkward"
+      | "interest"
+      | "flirt"
+      | "love"
+      | "obsession"
+      | "group";
   }>;
 }) {
   const { type, q, stage } = await searchParams;

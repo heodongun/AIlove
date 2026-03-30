@@ -31,7 +31,14 @@ export function HomeShellEntry({
   initialFilters: {
     type: string;
     q: string;
-    stage: "all" | "interest" | "some" | "dating" | "group";
+    stage:
+      | "all"
+      | "awkward"
+      | "interest"
+      | "flirt"
+      | "love"
+      | "obsession"
+      | "group";
   };
   initialDetail: RoomDetailPayload | null;
   initialDetailError: string | null;

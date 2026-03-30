@@ -1,84 +1,98 @@
 @import "tailwindcss";
 
 :root {
-  --background: #eff2f6;
-  --shell-surface: rgba(255, 255, 255, 0.86);
-  --foreground: #121317;
-  --avatar-text: #141518;
-  --muted-foreground: #555b66;
-  --subtle-foreground: #737a86;
-  --time-foreground: #818894;
+  --background: #f3f4f7;
+  --shell-surface: rgba(255, 255, 255, 0.88);
+  --foreground: #15171b;
+  --avatar-text: #101115;
+  --muted-foreground: #565d69;
+  --subtle-foreground: #7a828f;
+  --time-foreground: #8a92a0;
   --line: rgba(17, 24, 39, 0.08);
   --line-strong: rgba(17, 24, 39, 0.14);
-  --rail: #f4f6f9;
-  --rail-chip: #ffffff;
-  --rail-active: #ffe14b;
-  --badge: #ff7a3b;
+  --rail: #f5f6fa;
+  --rail-chip: rgba(255, 255, 255, 0.96);
   --sidebar: #ffffff;
-  --sidebar-hover: #f5f7fa;
-  --sidebar-selected: #f1f4f8;
-  --search-bg: #f4f6f9;
-  --thread-pane: #edf1f6;
-  --thread-header: rgba(255, 255, 255, 0.92);
-  --composer-bg: rgba(255, 255, 255, 0.9);
-  --composer-input: #f7f8fb;
-  --composer-button: #2a2f37;
-  --composer-button-text: #ffffff;
-  --bubble-other: #ffffff;
-  --bubble-other-text: #16181d;
-  --bubble-self: #ffe14b;
-  --bubble-self-text: #19160d;
+  --sidebar-hover: #f5f7fb;
+  --sidebar-selected: #f3f6ff;
+  --search-bg: #f4f6fb;
+  --thread-pane: #eef1f7;
+  --thread-header: rgba(255, 255, 255, 0.94);
+  --meta-surface: rgba(250, 251, 255, 0.94);
+  --hero-surface: linear-gradient(135deg, rgba(255, 236, 170, 0.68), rgba(255, 255, 255, 0.94));
+  --card-surface: rgba(255, 255, 255, 0.94);
+  --card-quiet: rgba(255, 255, 255, 0.72);
+  --chip-surface: rgba(255, 255, 255, 0.76);
+  --action-surface: rgba(255, 255, 255, 0.94);
+  --action-surface-hover: rgba(245, 247, 251, 1);
+  --composer-bg: rgba(255, 255, 255, 0.92);
+  --composer-input: rgba(244, 246, 251, 1);
+  --status-banner: rgba(255, 255, 255, 0.72);
+  --status-banner-border: rgba(17, 24, 39, 0.08);
+  --accent-strong: #ffd84d;
+  --accent-strong-text: #17150d;
+  --accent-soft: rgba(255, 216, 77, 0.22);
+  --accent-soft-border: rgba(230, 184, 41, 0.55);
+  --bubble-other: rgba(255, 255, 255, 0.92);
+  --bubble-other-text: #15171b;
+  --bubble-self: #ffd84d;
+  --bubble-self-text: #17150d;
+  --bubble-typing: rgba(255, 255, 255, 0.92);
   --divider-bg: rgba(17, 24, 39, 0.08);
   --divider-text: #6a7380;
-  --icon-foreground: #5a6270;
-  --danger: #d64646;
-  --danger-soft: rgba(214, 70, 70, 0.1);
-  --action-surface: rgba(255, 255, 255, 0.96);
-  --action-surface-hover: #f4f6f9;
-  --participant-surface: rgba(255, 255, 255, 0.92);
-  --participant-surface-hover: #f7f9fb;
-  --shadow-shell: 0 28px 72px rgba(15, 23, 42, 0.12);
-  --shadow-soft: 0 12px 28px rgba(15, 23, 42, 0.08);
+  --reaction-surface: rgba(255, 255, 255, 0.82);
+  --ai-reaction-surface: rgba(255, 245, 199, 0.8);
+  --danger: #c94c4c;
+  --danger-soft: rgba(201, 76, 76, 0.12);
+  --shadow-shell: 0 24px 72px rgba(15, 23, 42, 0.12);
+  --shadow-soft: 0 14px 36px rgba(15, 23, 42, 0.08);
 }
 
 html[data-theme="dark"] {
-  --background: #111214;
-  --shell-surface: rgba(21, 22, 25, 0.92);
+  --background: #101114;
+  --shell-surface: rgba(20, 21, 25, 0.94);
   --foreground: #f5f7fb;
-  --avatar-text: #101214;
-  --muted-foreground: #c1c8d0;
-  --subtle-foreground: #8d95a2;
-  --time-foreground: #8b94a1;
+  --avatar-text: #121417;
+  --muted-foreground: #c4cad4;
+  --subtle-foreground: #8b93a2;
+  --time-foreground: #8f98a7;
   --line: rgba(255, 255, 255, 0.08);
   --line-strong: rgba(255, 255, 255, 0.14);
-  --rail: #1d2025;
-  --rail-chip: #292d34;
-  --rail-active: #ffe14b;
-  --badge: #ff7a3b;
-  --sidebar: #17191d;
-  --sidebar-hover: #202329;
-  --sidebar-selected: #23272e;
-  --search-bg: #22262d;
-  --thread-pane: #131519;
-  --thread-header: rgba(20, 22, 27, 0.96);
+  --rail: #17191d;
+  --rail-chip: #23262d;
+  --sidebar: #15171b;
+  --sidebar-hover: #1c1f25;
+  --sidebar-selected: #232831;
+  --search-bg: #1e222a;
+  --thread-pane: #121418;
+  --thread-header: rgba(19, 21, 26, 0.97);
+  --meta-surface: rgba(16, 18, 23, 0.98);
+  --hero-surface: linear-gradient(135deg, rgba(255, 216, 77, 0.18), rgba(33, 36, 43, 0.96));
+  --card-surface: rgba(31, 34, 41, 0.94);
+  --card-quiet: rgba(36, 40, 48, 0.72);
+  --chip-surface: rgba(37, 40, 48, 0.85);
+  --action-surface: rgba(36, 39, 47, 0.96);
+  --action-surface-hover: rgba(44, 48, 57, 1);
   --composer-bg: rgba(18, 20, 25, 0.96);
-  --composer-input: #1e2229;
-  --composer-button: #ffe14b;
-  --composer-button-text: #1a1810;
-  --bubble-other: #2a2e35;
-  --bubble-other-text: #f7f8fb;
-  --bubble-self: #ffe14b;
-  --bubble-self-text: #1b180f;
-  --divider-bg: rgba(255, 255, 255, 0.1);
-  --divider-text: #b8bfca;
-  --icon-foreground: #cbd2dc;
+  --composer-input: rgba(28, 31, 38, 1);
+  --status-banner: rgba(28, 31, 38, 0.96);
+  --status-banner-border: rgba(255, 255, 255, 0.08);
+  --accent-strong: #d5b45a;
+  --accent-strong-text: #18160d;
+  --accent-soft: rgba(213, 180, 90, 0.14);
+  --accent-soft-border: rgba(213, 180, 90, 0.28);
+  --bubble-other: rgba(42, 46, 54, 0.96);
+  --bubble-other-text: #f5f7fb;
+  --bubble-self: #d5b45a;
+  --bubble-self-text: #1a1810;
+  --bubble-typing: rgba(43, 46, 54, 0.96);
+  --divider-bg: rgba(255, 255, 255, 0.08);
+  --divider-text: #b5bdc8;
+  --reaction-surface: rgba(38, 41, 49, 0.86);
+  --ai-reaction-surface: rgba(213, 180, 90, 0.16);
   --danger: #ff9a9a;
-  --danger-soft: rgba(255, 95, 95, 0.14);
-  --action-surface: #21252c;
-  --action-surface-hover: #2a2f37;
-  --participant-surface: #21252c;
-  --participant-surface-hover: #262b33;
-  --shadow-shell: 0 30px 90px rgba(0, 0, 0, 0.42);
+  --danger-soft: rgba(255, 120, 120, 0.16);
+  --shadow-shell: 0 30px 90px rgba(0, 0, 0, 0.44);
   --shadow-soft: 0 16px 40px rgba(0, 0, 0, 0.24);
 }
 
@@ -107,8 +121,8 @@ body {
   min-height: 100vh;
   margin: 0;
   background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.55), transparent 22%),
-    linear-gradient(180deg, #f6f8fb 0%, #eef2f7 100%);
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.6), transparent 22%),
+    linear-gradient(180deg, #f7f8fb 0%, #eef2f7 100%);
   color: var(--foreground);
   font-family: var(--font-sans), sans-serif;
 }
@@ -116,7 +130,7 @@ body {
 html[data-theme="dark"] body {
   background:
     radial-gradient(circle at top left, rgba(255, 255, 255, 0.04), transparent 20%),
-    linear-gradient(180deg, #0f1114 0%, #14171b 100%);
+    linear-gradient(180deg, #0d0f12 0%, #14171c 100%);
 }
 
 a,
@@ -127,18 +141,19 @@ input {
     border-color 160ms ease,
     color 160ms ease,
     transform 160ms ease,
-    opacity 160ms ease;
+    opacity 160ms ease,
+    box-shadow 160ms ease;
 }
 
 a:focus-visible,
 button:focus-visible,
 input:focus-visible {
-  outline: 3px solid rgba(255, 225, 75, 0.56);
+  outline: 3px solid rgba(255, 216, 77, 0.46);
   outline-offset: 2px;
 }
 
 ::selection {
-  background: rgba(255, 225, 75, 0.3);
+  background: rgba(255, 216, 77, 0.3);
   color: var(--foreground);
 }
 
@@ -155,7 +170,7 @@ input:focus-visible {
   grid-template-columns: 1fr;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 24px;
+  border-radius: 28px;
   background: var(--shell-surface);
   box-shadow: var(--shadow-shell);
   backdrop-filter: blur(18px);
@@ -183,19 +198,66 @@ input:focus-visible {
 
 .room-wallpaper {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0)),
     var(--thread-pane);
+}
+
+.message-entrance {
+  animation: message-enter 220ms ease-out;
+}
+
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.4;
+  animation: typing-bounce 980ms ease-in-out infinite;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 240ms;
+}
+
+@keyframes message-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes typing-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.28;
+  }
+
+  30% {
+    transform: translateY(-3px);
+    opacity: 0.88;
+  }
 }
 
 @media (min-width: 1024px) {
   .messenger-app {
-    grid-template-columns: 320px minmax(0, 1fr);
+    grid-template-columns: 332px minmax(0, 1fr);
   }
 }
 
 @media (min-width: 1280px) {
   .messenger-app {
-    grid-template-columns: 72px 320px minmax(0, 1fr);
+    grid-template-columns: 96px 332px minmax(0, 1fr);
   }
 }
 

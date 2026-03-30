@@ -1,49 +1,32 @@
-import type { ReactNode, RefObject, SVGProps } from "react";
+import type { ReactNode, SVGProps } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import {
-  buildConversationSummary,
-  formatClockTime,
-  formatDayLabel,
+  buildConfessionLine,
+  buildCurrentSituation,
+  buildSnapshotMetaTitle,
+  buildSnapshotSparkline,
+  filterLabel,
   formatRelativeTime,
   formatSidebarTime,
   getAvatarLabel,
   getAvatarPalette,
-  getConversationRelationshipMeta,
-  getRoomRelationshipMeta,
-  sameDay,
+  getStageMeta,
+  getTrendMeta,
+  stripSituationPrefix,
   shortenText,
-  toKoreaDateTimeAttr,
 } from "@/lib/room-utils";
 import type {
-  Message,
   Participant,
   RelationshipFilter,
-  RoomMeta,
+  RelationshipSnapshot,
   RoomSummary,
 } from "@/lib/types";
 
-function cn(...values: Array<string | false | null | undefined>) {
+export function cn(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
-}
-
-function roomIntro(room: Pick<RoomSummary, "subtitle" | "description" | "participants">) {
-  if (room.subtitle?.trim()) {
-    return room.subtitle.trim();
-  }
-
-  if (room.description?.trim()) {
-    return shortenText(room.description.trim(), 40);
-  }
-
-  return room.participants
-    .map((participant) => participant.roleLabel || participant.bio || participant.displayName)
-    .filter(Boolean)
-    .slice(0, 2)
-    .join(" · ");
-}
-
-function participantIntro(participant: Participant) {
-  return participant.bio || participant.roleLabel || participant.handle;
 }
 
 function IconBase(props: SVGProps<SVGSVGElement>) {
@@ -54,14 +37,14 @@ function IconBase(props: SVGProps<SVGSVGElement>) {
       stroke="currentColor"
       strokeLinecap="round"
       strokeLinejoin="round"
-      strokeWidth="1.9"
+      strokeWidth="1.85"
       viewBox="0 0 24 24"
       {...props}
     />
   );
 }
 
-function SearchIcon(props: SVGProps<SVGSVGElement>) {
+export function SearchIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <IconBase {...props}>
       <circle cx="11" cy="11" r="6.5" />
@@ -70,7 +53,7 @@ function SearchIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-function ChatIcon(props: SVGProps<SVGSVGElement>) {
+export function ChatIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <IconBase {...props}>
       <path d="M4.5 6.7A3.2 3.2 0 0 1 7.7 3.5h8.6a3.2 3.2 0 0 1 3.2 3.2v6.4a3.2 3.2 0 0 1-3.2 3.2h-5l-3.8 3v-3h-.8a3.2 3.2 0 0 1-3.2-3.2Z" />
@@ -78,11 +61,62 @@ function ChatIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-function PersonIcon(props: SVGProps<SVGSVGElement>) {
+export function PersonIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <IconBase {...props}>
       <circle cx="12" cy="8.2" r="3.2" />
       <path d="M5.8 18a6.2 6.2 0 0 1 12.4 0" />
+    </IconBase>
+  );
+}
+
+export function AIloveLogoMark({
+  className,
+}: {
+  className?: string;
+}) {
+  return (
+    <Image
+      alt="AIlove"
+      className={cn("h-8 w-8 object-contain", className)}
+      height={32}
+      src="/ailove-logo.svg"
+      width={32}
+    />
+  );
+}
+
+export function RefreshIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M20 12a8 8 0 1 1-2.34-5.66" />
+      <path d="M20 4v6h-6" />
+    </IconBase>
+  );
+}
+
+export function ChevronIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="m8 10 4 4 4-4" />
+    </IconBase>
+  );
+}
+
+export function SparkIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="m12 3 1.6 4.8L18 9.4l-4.4 1.4L12 16l-1.6-5.2L6 9.4l4.4-1.6Z" />
+    </IconBase>
+  );
+}
+
+export function HubIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M12 3.8 4.8 7.2V17l7.2 3.2 7.2-3.2V7.2Z" />
+      <path d="M12 3.8v16.4" />
+      <path d="M4.8 7.2 12 10.5l7.2-3.3" />
     </IconBase>
   );
 }
@@ -93,19 +127,21 @@ export function ActionChipButton({
   disabled,
   className,
   active = false,
+  icon,
 }: {
   label: string;
   onClick?: () => void;
   disabled?: boolean;
   className?: string;
   active?: boolean;
+  icon?: ReactNode;
 }) {
   return (
     <button
       className={cn(
-        "inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-full border px-3.5 text-[13px] font-medium transition-colors disabled:cursor-default disabled:opacity-55",
+        "inline-flex min-h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full border px-3.5 text-[13px] font-medium transition-colors disabled:cursor-default disabled:opacity-50",
         active
-          ? "border-[var(--bubble-self)] bg-[var(--bubble-self)] text-[var(--bubble-self-text)]"
+          ? "border-[var(--accent-strong)] bg-[var(--accent-strong)] text-[var(--accent-strong-text)]"
           : "border-[color:var(--line-strong)] bg-[var(--action-surface)] text-[var(--foreground)] hover:bg-[var(--action-surface-hover)]",
         className,
       )}
@@ -113,6 +149,7 @@ export function ActionChipButton({
       onClick={onClick}
       type="button"
     >
+      {icon}
       {label}
     </button>
   );
@@ -172,26 +209,55 @@ export function ParticipantStack({
   );
 }
 
-export function MessengerRail({ roomCount }: { roomCount: number }) {
-  return (
-    <aside className="hidden h-full flex-col justify-between border-r border-[color:var(--line)] bg-[color:var(--rail)] px-3 py-5 xl:flex">
-      <div className="space-y-4">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-[color:var(--line)] bg-[var(--rail-chip)] text-[var(--foreground)] shadow-[var(--shadow-soft)]">
-          <PersonIcon className="h-5 w-5" />
-        </div>
-        <div className="rounded-2xl bg-[var(--rail-active)] px-3 py-3 text-center text-[11px] font-bold text-[#1d1a10] shadow-[var(--shadow-soft)]">
-          <div className="mx-auto mb-1 flex h-7 w-7 items-center justify-center rounded-full bg-white/60">
-            <ChatIcon className="h-4 w-4" />
-          </div>
-          CHAT
-        </div>
-      </div>
+function StateBadge({
+  snapshot,
+  compact = false,
+  title,
+}: {
+  snapshot: RelationshipSnapshot;
+  compact?: boolean;
+  title?: string;
+}) {
+  const meta = getStageMeta(snapshot.stage);
 
-      <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--rail-chip)] px-3 py-3 text-center text-[11px] leading-5 text-[var(--subtle-foreground)]">
-        <div className="font-semibold text-[var(--foreground)]">LIVE</div>
-        <div>{roomCount} rooms</div>
-      </div>
-    </aside>
+  return (
+    <span
+      title={title}
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-[color:var(--line-strong)] bg-[var(--chip-surface)] font-semibold text-[var(--foreground)]",
+        compact ? "px-2.5 py-1 text-[11px] leading-none" : "px-3 py-1.5 text-[12px]",
+      )}
+    >
+      <span>{meta.emoji}</span>
+      <span>{snapshot.stageLabel || meta.label}</span>
+    </span>
+  );
+}
+
+function SignalBadge({
+  label,
+  title,
+  tone = "default",
+}: {
+  label: string;
+  title?: string;
+  tone?: "default" | "accent" | "muted";
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-semibold leading-none",
+        tone === "accent" &&
+          "border-[var(--accent-soft-border)] bg-[var(--accent-soft)] text-[var(--foreground)]",
+        tone === "muted" &&
+          "border-[color:var(--line)] bg-[var(--card-quiet)] text-[var(--subtle-foreground)]",
+        tone === "default" &&
+          "border-[color:var(--line-strong)] bg-[var(--chip-surface)] text-[var(--foreground)]",
+      )}
+      title={title}
+    >
+      {label}
+    </span>
   );
 }
 
@@ -199,57 +265,100 @@ export function RoomListItem({
   room,
   active,
   onSelect,
-  relationshipMeta,
 }: {
   room: RoomSummary;
   active: boolean;
   onSelect?: (slug: string) => void;
-  relationshipMeta?: ReturnType<typeof getRoomRelationshipMeta>;
 }) {
-  const roomRelationshipMeta = relationshipMeta ?? getRoomRelationshipMeta(room);
+  const trendMeta = getTrendMeta(room.relationshipSnapshot.trend);
+  const snapshotTitle = buildSnapshotMetaTitle(room.relationshipSnapshot);
+  const statusLine = stripSituationPrefix(
+    buildCurrentSituation(room.relationshipSnapshot, room.currentSituation),
+  );
+  const showPollHint = Boolean(room.openScenePoll?.sceneId);
+  const sceneLine =
+    room.highlightQuote ||
+    room.lastMessagePreview ||
+    "새 장면이 열리면 여기서 바로 확인할 수 있습니다.";
 
   return (
     <button
       className={cn(
-        "group flex min-h-[88px] w-full items-start gap-3 rounded-2xl px-4 py-3 text-left sm:min-h-[96px]",
-        active ? "bg-[var(--sidebar-selected)]" : "hover:bg-[var(--sidebar-hover)]",
+        "group flex w-full flex-col gap-2.5 rounded-[20px] border px-3.5 py-3 text-left transition-colors",
+        active
+          ? "border-[var(--accent-soft-border)] bg-[var(--sidebar-selected)] shadow-[var(--shadow-soft)]"
+          : "border-transparent hover:bg-[var(--sidebar-hover)]",
       )}
       onClick={() => onSelect?.(room.slug)}
       type="button"
     >
-      <ParticipantStack participants={room.participants} />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="truncate text-[16px] font-semibold text-[var(--foreground)]">
-              {room.title}
-            </p>
-            <p className="mt-0.5 truncate text-[12px] text-[var(--subtle-foreground)]">
-              {roomIntro(room)}
-            </p>
+      <div className="flex items-start gap-3">
+        <ParticipantStack participants={room.participants} size={30} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-[15px] font-semibold text-[var(--foreground)]">
+                {room.title}
+              </p>
+            </div>
+            <span
+              suppressHydrationWarning
+              className="shrink-0 text-[11px] text-[var(--time-foreground)]"
+            >
+              {formatSidebarTime(room.lastMessageAt)}
+            </span>
           </div>
-          <span
-            suppressHydrationWarning
-            className="shrink-0 text-[12px] text-[var(--time-foreground)]"
+
+          <div className="mt-1.5 flex min-w-0 items-center gap-2">
+            <StateBadge compact snapshot={room.relationshipSnapshot} title={snapshotTitle} />
+            <span className="min-w-0 flex-1 truncate break-keep text-[11px] font-medium text-[var(--subtle-foreground)]">
+              {buildConfessionLine(room.relationshipSnapshot)}
+            </span>
+            <span
+              className="shrink-0 font-mono text-[11px] font-semibold tracking-[0.08em] text-[var(--subtle-foreground)]"
+              title="최근 관계 추세를 간단히 압축한 스파크라인입니다."
+            >
+              {buildSnapshotSparkline(room.relationshipSnapshot)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <p className="line-clamp-2 break-keep text-[11px] leading-5 text-[var(--muted-foreground)]">
+        {shortenText(statusLine, 90)}
+      </p>
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <SignalBadge
+          label={`${trendMeta.symbol} ${trendMeta.label}`}
+          title={snapshotTitle}
+          tone="muted"
+        />
+        {showPollHint ? (
+          <SignalBadge label="🗳 투표 중" title="지금 다음 장면 선택지가 열려 있습니다." tone="accent" />
+        ) : room.highlightQuote ? (
+          <SignalBadge label="✨ 명장면" title="최근 장면에서 반응이 큰 대사가 잡혔습니다." />
+        ) : null}
+      </div>
+
+      <div className="flex items-start justify-between gap-3 text-[11px]">
+        <div className="min-w-0 flex-1">
+          <p
+            className="truncate text-[var(--subtle-foreground)]"
+            title={sceneLine}
           >
-            {formatSidebarTime(room.lastMessageAt)}
-          </span>
+            {showPollHint ? room.openScenePoll?.title : shortenText(sceneLine, 42)}
+          </p>
+          <p
+            className="mt-1 truncate font-medium text-[var(--muted-foreground)]"
+            title={buildConfessionLine(room.relationshipSnapshot)}
+          >
+            {buildConfessionLine(room.relationshipSnapshot)}
+          </p>
         </div>
-
-        <div className="mt-2 flex items-start justify-between gap-3">
-          <p className="min-w-0 flex-1 truncate text-[13px] text-[var(--muted-foreground)]">
-              {shortenText(room.lastMessagePreview || "아직 새 메시지가 없어요.", 42)}
-            </p>
-
-          <div className="flex shrink-0 items-center gap-2">
-            <span className="rounded-full border border-[color:var(--line)] bg-[var(--search-bg)] px-2 py-0.5 text-[10px] font-semibold text-[var(--subtle-foreground)]">
-              {roomRelationshipMeta.label}
-            </span>
-            <span className="text-[12px] font-semibold text-[var(--foreground)]">
-              {roomRelationshipMeta.score}
-            </span>
-          </div>
-        </div>
+        <span suppressHydrationWarning className="shrink-0 text-[var(--subtle-foreground)]">
+          {formatRelativeTime(room.lastMessageAt)}
+        </span>
       </div>
     </button>
   );
@@ -261,167 +370,63 @@ export function SidebarHeader({
   roomCount,
   actions,
   filters,
+  title = "채팅",
+  subtitle = "실시간 장면 관전",
+  searchPlaceholder = "방 이름, 상황 검색",
+  refreshLabel = "2.5초 갱신",
 }: {
   query: string;
   onChangeQuery: (value: string) => void;
   roomCount: number;
   actions?: ReactNode;
   filters?: ReactNode;
+  title?: string;
+  subtitle?: string;
+  searchPlaceholder?: string;
+  refreshLabel?: string;
 }) {
   return (
-    <div className="border-b border-[color:var(--line)] px-4 py-4 sm:px-5">
-      <div className="mb-4">
-        <div className="flex min-w-0 items-center gap-2">
-          <h1 className="text-[24px] font-bold tracking-[-0.03em] text-[var(--foreground)] sm:text-[27px]">
-            채팅
-          </h1>
-          <span className="rounded-full bg-[var(--rail-active)] px-2 py-0.5 text-[11px] font-semibold text-[#1d1a10]">
-            LIVE
-          </span>
-        </div>
-        {actions ? <div className="mt-3 flex flex-wrap items-center gap-2">{actions}</div> : null}
-      </div>
-
-      <label className="flex min-h-12 items-center gap-3 rounded-2xl border border-[color:var(--line)] bg-[var(--search-bg)] px-4">
-        <SearchIcon className="h-4 w-4 text-[var(--subtle-foreground)]" />
-        <input
-          className="w-full bg-transparent text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--subtle-foreground)]"
-          onChange={(event) => onChangeQuery(event.target.value)}
-          placeholder="이름, 방 소개, 대화 내용 검색"
-          value={query}
-        />
-      </label>
-
-      {filters ? <div className="mt-3 flex gap-2 overflow-x-auto pb-1">{filters}</div> : null}
-
-      <div className="mt-3 flex items-center justify-between text-[12px] text-[var(--subtle-foreground)]">
-        <span>공개 채팅 {roomCount}개</span>
-        <span>15초마다 갱신</span>
-      </div>
-    </div>
-  );
-}
-
-function ParticipantLine({ participant }: { participant: Participant }) {
-  return (
-    <div className="flex min-w-[15rem] items-center gap-3 rounded-2xl border border-[color:var(--line)] bg-[var(--participant-surface)] px-3 py-2 shadow-[var(--shadow-soft)] sm:min-w-0">
-      <ParticipantAvatar participant={participant} size={28} />
-      <div className="min-w-0">
-        <p className="truncate text-[14px] font-semibold text-[var(--foreground)]">
-          {participant.displayName}
-        </p>
-        <p className="truncate text-[12px] text-[var(--subtle-foreground)]">
-          {participantIntro(participant)}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-export function ConversationHeader({
-  room,
-  participants,
-  messages,
-  serverTime,
-  actions,
-}: {
-  room: RoomMeta;
-  participants: Participant[];
-  messages: Message[];
-  serverTime: string;
-  actions?: ReactNode;
-}) {
-  const relationshipMeta = getConversationRelationshipMeta(
-    messages,
-    participants,
-    room.roomType,
-  );
-  const summary = buildConversationSummary(messages, participants, room.roomType);
-
-  return (
-    <header className="border-b border-[color:var(--line)] bg-[color:var(--thread-header)] px-4 py-4 sm:px-5 md:px-6">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+    <div className="border-b border-[color:var(--line)] px-4 py-3 sm:px-4">
+      <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-3">
-            <ParticipantStack participants={participants} />
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h2 className="truncate text-[20px] font-bold tracking-[-0.03em] text-[var(--foreground)] sm:text-[24px]">
-                  {room.title}
-                </h2>
-                <span className="rounded-full border border-[color:var(--line)] bg-[var(--search-bg)] px-2.5 py-1 text-[11px] font-semibold text-[var(--foreground)]">
-                  {relationshipMeta.label}
-                </span>
-                <span className="text-[13px] text-[var(--subtle-foreground)]">
-                  {participants.length}
-                </span>
-              </div>
-              <p className="mt-0.5 text-[13px] leading-5 text-[var(--subtle-foreground)] sm:truncate">
-                {room.subtitle || room.description || "AI 대화가 계속 이어지는 읽기 전용 방"}
-              </p>
-            </div>
+          <div className="flex min-w-0 items-center gap-2">
+            <h1 className="whitespace-nowrap break-keep text-[22px] font-bold leading-none tracking-[-0.03em] text-[var(--foreground)] sm:text-[24px]">
+              {title}
+            </h1>
+            <span className="shrink-0 rounded-full bg-[var(--chip-surface)] px-2 py-0.5 text-[11px] font-semibold text-[var(--subtle-foreground)]">
+              {roomCount}
+            </span>
           </div>
-
-          <div className="mt-3 flex gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 xl:grid-cols-3">
-            {participants.map((participant) => (
-              <ParticipantLine key={participant.id} participant={participant} />
-            ))}
-          </div>
-
-          <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_18rem]">
-            <section className="rounded-2xl border border-[color:var(--line)] bg-[var(--participant-surface)] px-4 py-3 shadow-[var(--shadow-soft)]">
-              <p className="text-[11px] font-semibold tracking-[0.12em] text-[var(--subtle-foreground)]">
-                대화 요약
-              </p>
-              <p className="mt-2 text-[14px] leading-6 text-[var(--foreground)]">
-                {summary}
-              </p>
-            </section>
-
-            <section className="rounded-2xl border border-[color:var(--line)] bg-[var(--participant-surface)] px-4 py-3 shadow-[var(--shadow-soft)]">
-              <div className="flex items-end justify-between gap-3">
-                <div>
-                  <p className="text-[11px] font-semibold tracking-[0.12em] text-[var(--subtle-foreground)]">
-                    애정도
-                  </p>
-                  <p className="mt-1 text-[13px] text-[var(--subtle-foreground)]">
-                    최근 대화 흐름 기준
-                  </p>
-                </div>
-                <div className="text-right">
-                  <div className="text-[30px] font-bold tracking-[-0.04em] text-[var(--foreground)]">
-                    {relationshipMeta.score}
-                  </div>
-                  <div className="text-[12px] font-medium text-[var(--subtle-foreground)]">
-                    / 100
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-3 h-2 rounded-full bg-[var(--search-bg)]">
-                <div
-                  className="h-full rounded-full bg-[var(--bubble-self)] transition-[width] duration-300"
-                  style={{ width: `${relationshipMeta.score}%` }}
-                />
-              </div>
-
-              <p className="mt-2 text-[13px] leading-5 text-[var(--foreground)]">
-                {relationshipMeta.stage === "group"
-                  ? relationshipMeta.tone
-                  : `${relationshipMeta.label} 단계, ${relationshipMeta.tone}`}
-              </p>
-            </section>
-          </div>
+          <p className="mt-1 text-[12px] text-[var(--subtle-foreground)]">
+            {subtitle}
+          </p>
         </div>
-
-        {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
+        {actions ? (
+          <div className="flex max-w-[58%] shrink-0 flex-wrap items-center justify-end gap-2">
+            {actions}
+          </div>
+        ) : null}
       </div>
 
-      <div className="mt-3 flex items-center justify-between text-[12px] text-[var(--subtle-foreground)]">
-        <span suppressHydrationWarning>실시간 확인 {formatRelativeTime(serverTime)}</span>
-        <span>읽기 전용</span>
+      <div className="mt-3">
+        <label className="flex min-h-11 items-center gap-3 rounded-2xl border border-[color:var(--line)] bg-[var(--search-bg)] px-3.5">
+          <SearchIcon className="h-4 w-4 text-[var(--subtle-foreground)]" />
+          <input
+            className="w-full bg-transparent text-[13px] text-[var(--foreground)] outline-none placeholder:text-[var(--subtle-foreground)]"
+            onChange={(event) => onChangeQuery(event.target.value)}
+            placeholder={searchPlaceholder}
+            value={query}
+          />
+        </label>
       </div>
-    </header>
+
+      {filters ? <div className="mt-2.5 flex gap-1.5 overflow-x-auto pb-1">{filters}</div> : null}
+
+      <div className="mt-2 flex items-center justify-between text-[11px] text-[var(--subtle-foreground)]">
+        <span>공개 {roomCount}개</span>
+        <span>{refreshLabel}</span>
+      </div>
+    </div>
   );
 }
 
@@ -432,170 +437,95 @@ export function RelationshipFilterBar({
   activeFilter: RelationshipFilter;
   onSelect: (value: RelationshipFilter) => void;
 }) {
-  const filters: Array<{ value: RelationshipFilter; label: string }> = [
-    { value: "all", label: "전체" },
-    { value: "interest", label: "사귀기 전" },
-    { value: "some", label: "썸" },
-    { value: "dating", label: "연애중" },
-    { value: "group", label: "단톡" },
+  const filters: RelationshipFilter[] = [
+    "all",
+    "awkward",
+    "interest",
+    "flirt",
+    "love",
+    "obsession",
+    "group",
   ];
 
-  return filters.map((filter) => (
-    <ActionChipButton
-      key={filter.value}
-      active={activeFilter === filter.value}
-      className="min-h-9 px-3 text-[12px]"
-      label={filter.label}
-      onClick={() => onSelect(filter.value)}
-    />
-  ));
-}
-
-function SystemNotice({ content }: { content: string }) {
   return (
-    <div className="flex justify-center py-1">
-      <div className="rounded-full bg-[var(--divider-bg)] px-4 py-2 text-[11px] font-medium text-[var(--divider-text)]">
-        {content}
-      </div>
-    </div>
+    <>
+      {filters.map((filter) => (
+        <ActionChipButton
+          key={filter}
+          active={activeFilter === filter}
+          className="min-h-8 px-2.5 text-[11px]"
+          label={filterLabel(filter)}
+          onClick={() => onSelect(filter)}
+        />
+      ))}
+    </>
   );
 }
 
-function BubbleTime({ postedAt }: { postedAt: string }) {
+function RailButton({
+  href,
+  active,
+  label,
+  icon,
+}: {
+  href: string;
+  active: boolean;
+  label: string;
+  icon: ReactNode;
+}) {
   return (
-    <time
-      suppressHydrationWarning
-      className="text-[12px] text-[var(--time-foreground)]"
-      dateTime={toKoreaDateTimeAttr(postedAt)}
+    <Link
+      href={href}
+      className={cn(
+        "flex min-h-[78px] w-full flex-col items-center justify-center rounded-[24px] border px-2 py-3.5 text-center transition-all",
+        active
+          ? "border-[var(--accent-strong)] bg-[var(--accent-strong)] text-[var(--accent-strong-text)] shadow-[var(--shadow-soft)]"
+          : "border-[color:var(--line)] bg-[var(--rail-chip)] text-[var(--foreground)] hover:bg-[var(--sidebar-hover)]",
+      )}
     >
-      {formatClockTime(postedAt)}
-    </time>
+      <div
+        className={cn(
+          "flex h-9 w-9 items-center justify-center rounded-full",
+          active ? "bg-white/45" : "bg-black/5 dark:bg-white/8",
+        )}
+      >
+        {icon}
+      </div>
+      <span className="mt-1.5 block whitespace-nowrap text-[9px] font-semibold tracking-[0.08em]">
+        {label}
+      </span>
+    </Link>
   );
 }
 
-function MessageBubble({
-  message,
-  participants,
-}: {
-  message: Message;
-  participants: Participant[];
-}) {
-  if (message.messageType === "system") {
-    return <SystemNotice content={message.content} />;
-  }
-
-  const speaker =
-    participants.find((participant) => participant.id === message.speakerId) ?? null;
+export function MessengerRail({ roomCount }: { roomCount: number }) {
+  const pathname = usePathname();
+  const chatActive = !pathname.startsWith("/hub");
+  const hubActive = pathname.startsWith("/hub");
 
   return (
-    <div className="flex gap-3">
-      {speaker ? <ParticipantAvatar participant={speaker} size={40} /> : null}
-      <div className="max-w-[min(82vw,32rem)] sm:max-w-[min(78vw,32rem)]">
-        {speaker ? (
-          <p className="mb-1 text-[13px] font-semibold text-[var(--foreground)]">
-            {speaker.displayName}
-          </p>
-        ) : null}
-        <div className="flex items-end gap-2">
-          <div className="rounded-[6px] rounded-tl-[2px] bg-[var(--bubble-other)] px-4 py-3 text-[15px] leading-6 text-[var(--bubble-other-text)]">
-            {message.content}
+    <aside className="relative z-10 hidden h-full w-[96px] min-w-[96px] flex-col border-r border-[color:var(--line)] bg-[color:var(--rail)] px-3 py-4 xl:flex">
+      <div className="flex min-h-0 flex-1 flex-col items-center gap-4">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[color:var(--line)] bg-[var(--rail-chip)] text-[var(--foreground)] shadow-[var(--shadow-soft)]">
+          <AIloveLogoMark className="h-8 w-8" />
+        </div>
+        <nav className="w-full space-y-2">
+          <RailButton active={chatActive} href="/" icon={<ChatIcon className="h-4 w-4" />} label="CHAT" />
+          <RailButton active={hubActive} href="/hub" icon={<HubIcon className="h-4 w-4" />} label="HUB" />
+        </nav>
+
+        <div className="mt-auto w-full rounded-[22px] border border-[color:var(--line)] bg-[var(--rail-chip)] px-2.5 py-3 text-center">
+          <div className="text-[9px] font-semibold tracking-[0.08em] text-[var(--subtle-foreground)]">
+            {hubActive ? "LIVE HUB" : "LIVE CHAT"}
           </div>
-          <BubbleTime postedAt={message.postedAt} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function ChatTimeline({
-  messages,
-  participants,
-  scrollRef,
-  emptyCopy,
-}: {
-  messages: Message[];
-  participants: Participant[];
-  scrollRef?: RefObject<HTMLDivElement | null>;
-  emptyCopy?: string;
-}) {
-  return (
-    <div
-      ref={scrollRef}
-      className="thread-scroll room-wallpaper flex-1 overflow-y-auto px-3 py-4 sm:px-4 sm:py-5 md:px-6"
-    >
-      <div className="mx-auto max-w-4xl space-y-4">
-        {messages.length === 0 ? (
-          <div className="flex min-h-[320px] items-center justify-center">
-            <div className="rounded-2xl bg-[var(--bubble-other)] px-6 py-5 text-center">
-              <p className="text-[15px] font-semibold text-[var(--foreground)]">
-                아직 대화가 없습니다
-              </p>
-              <p className="mt-2 text-[13px] leading-6 text-[var(--subtle-foreground)]">
-                {emptyCopy || "owner 루프가 메시지를 넣으면 여기 바로 반영됩니다."}
-              </p>
-            </div>
+          <div className="mt-1 text-[18px] font-bold leading-none text-[var(--foreground)]">
+            {roomCount}
           </div>
-        ) : null}
-
-        {messages.map((message, index) => {
-          const previous = messages[index - 1];
-          const showDivider =
-            !previous || !sameDay(previous.postedAt, message.postedAt);
-
-          return (
-            <div key={message.id} className="space-y-3">
-              {showDivider ? (
-                <div className="flex justify-center py-2">
-                  <div className="rounded-full bg-[var(--divider-bg)] px-4 py-2 text-[11px] font-semibold text-[var(--divider-text)]">
-                    {formatDayLabel(message.postedAt)}
-                  </div>
-                </div>
-              ) : null}
-              <MessageBubble message={message} participants={participants} />
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-export function ReadOnlyComposer({
-  isRefreshing,
-  cta,
-  secondaryAction,
-}: {
-  isRefreshing: boolean;
-  cta?: ReactNode;
-  secondaryAction?: ReactNode;
-}) {
-  return (
-    <div className="border-t border-[color:var(--line)] bg-[color:var(--composer-bg)] px-3 py-3 sm:px-4 md:px-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-        <div className="flex min-h-[56px] flex-1 items-center rounded-2xl border border-[color:var(--line)] bg-[var(--composer-input)] px-4 text-[14px] text-[var(--subtle-foreground)]">
-          <span className="mr-3 rounded-full bg-[var(--rail-active)] px-2 py-0.5 text-[11px] font-semibold text-[#1d1a10]">
-            LIVE
-          </span>
-          {isRefreshing
-            ? "새 메시지를 확인하는 중입니다."
-            : "읽기 전용 관전 모드입니다. 새 메시지는 자동으로 반영됩니다."}
-        </div>
-
-        <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end lg:w-auto lg:self-auto">
-          {secondaryAction}
-          {cta ? (
-            cta
-          ) : (
-            <button
-              className="inline-flex min-h-10 items-center justify-center rounded-full bg-[var(--composer-button)] px-4 text-[13px] font-semibold text-[var(--composer-button-text)] opacity-90"
-              disabled
-              type="button"
-            >
-              읽기 전용
-            </button>
-          )}
+          <div className="mt-1 text-[9px] font-medium uppercase tracking-[0.08em] text-[var(--subtle-foreground)]">
+            rooms
+          </div>
         </div>
       </div>
-    </div>
+    </aside>
   );
 }

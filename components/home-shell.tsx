@@ -1,32 +1,30 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   startTransition,
   useDeferredValue,
   useEffect,
   useEffectEvent,
+  useMemo,
   useRef,
   useState,
 } from "react";
 
 import {
   ActionChipButton,
-  ChatTimeline,
-  ConversationHeader,
   MessengerRail,
-  ReadOnlyComposer,
+  RefreshIcon,
   RelationshipFilterBar,
   RoomListItem,
   SidebarHeader,
 } from "@/components/messenger-ui";
+import { RoomStoryPane } from "@/components/room-story-pane";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
-  getConversationRelationshipMeta,
-  getRoomRelationshipMeta,
   matchesRelationshipFilter,
   matchesRoomQuery,
+  mergeMessageMeta,
   mergeMessages,
   updateRoomsWithLatestMessages,
 } from "@/lib/room-utils";
@@ -34,6 +32,8 @@ import {
   getPublicRoomDetail,
   getPublicRoomUpdates,
   getPublicRooms,
+  submitMessageReaction,
+  submitSceneVote,
 } from "@/lib/n8n";
 import type {
   PublicN8nConfig,
@@ -41,19 +41,45 @@ import type {
   RoomDetailPayload,
   RoomSummary,
 } from "@/lib/types";
+import {
+  getOrCreateViewerId,
+  readDramaModePreference,
+  readInfoPanelPreference,
+  readSavedHighlights,
+  toggleSavedHighlight,
+  writeDramaModePreference,
+  writeInfoPanelPreference,
+} from "@/lib/viewer";
 
 function ThreadPlaceholder() {
   return (
     <div className="room-wallpaper flex flex-1 items-center justify-center px-6 py-10">
-      <div className="rounded-2xl bg-[var(--bubble-other)] px-7 py-7 text-center">
-        <p className="text-[24px] font-bold tracking-[-0.03em] text-[var(--foreground)]">
+      <div className="max-w-lg rounded-[28px] border border-[color:var(--line)] bg-[var(--card-surface)] px-7 py-7 text-center shadow-[var(--shadow-soft)]">
+        <p className="text-[26px] font-bold tracking-[-0.03em] text-[var(--foreground)]">
           채팅방을 선택하세요
         </p>
         <p className="mt-3 text-[14px] leading-6 text-[var(--subtle-foreground)]">
-          왼쪽 목록에서 방을 누르면 실제 대화가 여기 바로 열립니다.
+          왼쪽 목록에서 장면을 고르면 현재 관계 상태, 감정 변화, 투표와 실시간 대화가
+          함께 열립니다.
         </p>
       </div>
     </div>
+  );
+}
+
+function applyDetailToRooms(rooms: RoomSummary[], detail: RoomDetailPayload) {
+  return rooms.map((room) =>
+    room.slug === detail.room.slug
+      ? {
+          ...room,
+          currentSituation: detail.currentSituation,
+          dominantPair:
+            detail.relationshipSnapshot.dominantPair ?? room.dominantPair ?? null,
+          highlightQuote: detail.highlight?.quote ?? room.highlightQuote,
+          openScenePoll: detail.scenePoll,
+          relationshipSnapshot: detail.relationshipSnapshot,
+        }
+      : room,
   );
 }
 
@@ -77,49 +103,34 @@ export function HomeShell({
   n8nConfig: PublicN8nConfig;
 }) {
   const router = useRouter();
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const [rooms, setRooms] = useState(initialRooms);
   const [query, setQuery] = useState(initialFilters.q);
+  const deferredQuery = useDeferredValue(query);
   const [relationshipFilter, setRelationshipFilter] = useState<RelationshipFilter>(
     initialFilters.stage,
   );
   const [activeSlug, setActiveSlug] = useState(
     initialDetail?.room.slug ?? initialRooms[0]?.slug ?? null,
   );
-  const [isCompactLayout, setIsCompactLayout] = useState(false);
   const [detail, setDetail] = useState<RoomDetailPayload | null>(initialDetail);
   const [roomsError, setRoomsError] = useState(initialError);
   const [detailError, setDetailError] = useState(initialDetailError);
   const [isRoomsLoading, setIsRoomsLoading] = useState(
     initialRooms.length === 0 && !initialError,
   );
-  const [isDetailLoading, setIsDetailLoading] = useState(
-    !initialDetail && initialRooms.length > 0,
-  );
+  const [isDetailLoading, setIsDetailLoading] = useState(!initialDetail && initialRooms.length > 0);
   const [isDetailRefreshing, setIsDetailRefreshing] = useState(false);
-  const deferredQuery = useDeferredValue(query);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const roomInsightsRefreshAtRef = useRef(0);
-  const [roomInsights, setRoomInsights] = useState<
-    Record<string, ReturnType<typeof getRoomRelationshipMeta>>
-  >(() => {
-    const base = Object.fromEntries(
-      initialRooms.map((room) => [room.slug, getRoomRelationshipMeta(room)]),
-    );
-
-    if (initialDetail) {
-      base[initialDetail.room.slug] = getConversationRelationshipMeta(
-        initialDetail.messages,
-        initialDetail.participants,
-        initialDetail.room.roomType,
-      );
-    }
-
-    return base;
-  });
+  const [isVoting, setIsVoting] = useState(false);
+  const [reactingMessageId, setReactingMessageId] = useState<number | null>(null);
+  const [viewerId, setViewerId] = useState<string | null>(null);
+  const [metaExpanded, setMetaExpanded] = useState(true);
+  const [dramaMode, setDramaMode] = useState(true);
+  const [savedHighlightKeys, setSavedHighlightKeys] = useState<Set<string>>(new Set());
+  const [isCompactLayout, setIsCompactLayout] = useState(false);
 
   const scrollToBottom = (behavior: ScrollBehavior = "auto") => {
     const container = scrollRef.current;
-
     if (!container) {
       return;
     }
@@ -132,87 +143,34 @@ export function HomeShell({
 
   const isPinnedToBottom = () => {
     const container = scrollRef.current;
-
     if (!container) {
       return true;
     }
 
-    return container.scrollHeight - container.scrollTop - container.clientHeight < 96;
+    return container.scrollHeight - container.scrollTop - container.clientHeight < 120;
   };
 
-  const fetchRooms = async ({
-    silent = false,
-    forceSelection = false,
-  }: {
-    silent?: boolean;
-    forceSelection?: boolean;
-  } = {}) => {
+  const fetchRooms = async (silent = false) => {
     if (!silent) {
       setIsRoomsLoading(rooms.length === 0);
     }
 
     try {
-      const payload = await getPublicRooms({
-        limit: 24,
-        q: deferredQuery.trim() || undefined,
-      }, n8nConfig);
-      const nextRooms = payload.rooms;
-      const shouldRefreshInsights =
-        Date.now() - roomInsightsRefreshAtRef.current > 15_000 || !silent;
-
-      if (shouldRefreshInsights) {
-        roomInsightsRefreshAtRef.current = Date.now();
-
-        void Promise.allSettled(
-          nextRooms.map(async (room) => {
-            const roomDetail = await getPublicRoomDetail(room.slug, n8nConfig);
-
-            return [
-              room.slug,
-              getConversationRelationshipMeta(
-                roomDetail.messages,
-                roomDetail.participants,
-                roomDetail.room.roomType,
-              ),
-            ] as const;
-          }),
-        ).then((results) => {
-          startTransition(() => {
-            setRoomInsights((current) => {
-              const next = { ...current };
-
-              for (const result of results) {
-                if (result.status !== "fulfilled") {
-                  continue;
-                }
-
-                const [slug, meta] = result.value;
-                next[slug] = meta;
-              }
-
-              return next;
-            });
-          });
-        });
-      }
+      const payload = await getPublicRooms(
+        {
+          limit: 24,
+          q: deferredQuery.trim() || undefined,
+        },
+        n8nConfig,
+      );
 
       startTransition(() => {
-        setRooms(nextRooms);
+        setRooms(payload.rooms);
         setRoomsError(null);
-
-        if (
-          forceSelection ||
-          !activeSlug ||
-          !nextRooms.some((room) => room.slug === activeSlug)
-        ) {
-          setActiveSlug(nextRooms[0]?.slug ?? null);
-        }
       });
     } catch (error) {
       setRoomsError(
-        error instanceof Error
-          ? error.message
-          : "채팅방 목록을 가져오지 못했어요.",
+        error instanceof Error ? error.message : "채팅방 목록을 불러오지 못했어요.",
       );
     } finally {
       setIsRoomsLoading(false);
@@ -221,42 +179,26 @@ export function HomeShell({
 
   const refreshRooms = useEffectEvent(fetchRooms);
 
-  const fetchRoomDetail = async (
-    slug: string,
-    {
-      silent = false,
-    }: {
-      silent?: boolean;
-    } = {},
-  ) => {
-    if (!slug) {
-      setDetail(null);
-      return;
-    }
-
+  const fetchRoomDetail = async (slug: string, silent = false) => {
     if (!silent) {
       setIsDetailLoading(true);
     }
 
     try {
-      const payload = await getPublicRoomDetail(slug, n8nConfig);
+      const payload = await getPublicRoomDetail(slug, n8nConfig, {
+        deviceId: viewerId ?? undefined,
+      });
 
       startTransition(() => {
         setDetail(payload);
         setDetailError(null);
-        setRoomInsights((current) => ({
-          ...current,
-          [slug]: getConversationRelationshipMeta(
-            payload.messages,
-            payload.participants,
-            payload.room.roomType,
-          ),
-        }));
+        setRooms((current) => applyDetailToRooms(current, payload));
       });
+
       window.requestAnimationFrame(() => scrollToBottom("auto"));
     } catch (error) {
       setDetailError(
-        error instanceof Error ? error.message : "대화방을 열지 못했어요.",
+        error instanceof Error ? error.message : "대화방을 불러오지 못했어요.",
       );
     } finally {
       setIsDetailLoading(false);
@@ -265,94 +207,84 @@ export function HomeShell({
 
   const loadRoomDetail = useEffectEvent(fetchRoomDetail);
 
-  const fetchActiveUpdates = async () => {
-    if (document.visibilityState === "hidden" || !activeSlug || !detail) {
+  const fetchUpdates = async () => {
+    if (
+      document.visibilityState === "hidden" ||
+      !activeSlug ||
+      !detail ||
+      detail.room.slug !== activeSlug
+    ) {
       return;
     }
 
-    if (detail.room.slug !== activeSlug) {
-      return;
-    }
-
+    const cursor = detail.messages.at(-1);
+    const pinned = isPinnedToBottom();
     setIsDetailRefreshing(true);
-    const lastMessage = detail.messages.at(-1);
-    const wasPinned = isPinnedToBottom();
-    const params = new URLSearchParams();
-
-    if (lastMessage?.postedAt) {
-      params.set("after", lastMessage.postedAt);
-      params.set("afterId", String(lastMessage.id));
-    }
 
     try {
-      const payload = await getPublicRoomUpdates(activeSlug, {
-        after: params.get("after") ?? undefined,
-        afterId: params.get("afterId") ?? undefined,
-      }, n8nConfig);
+      const payload = await getPublicRoomUpdates(
+        activeSlug,
+        {
+          after: cursor?.postedAt,
+          afterId: cursor ? String(cursor.id) : undefined,
+          deviceId: viewerId ?? undefined,
+        },
+        n8nConfig,
+      );
 
-      if (payload.messages.length > 0) {
-        const nextMessages = mergeMessages(detail.messages, payload.messages);
+      const mergedMessages = mergeMessageMeta(
+        mergeMessages(detail.messages, payload.messages),
+        payload.messageMeta,
+      );
+      const nextDetail: RoomDetailPayload = {
+        ...detail,
+        messages: mergedMessages,
+        relationshipSnapshot: payload.relationshipSnapshot ?? detail.relationshipSnapshot,
+        emotionTimeline:
+          payload.emotionTimeline.length > 0
+            ? payload.emotionTimeline
+            : detail.emotionTimeline,
+        highlight: payload.highlight ?? detail.highlight,
+        scenePoll: payload.scenePoll ?? detail.scenePoll,
+        viewerState: payload.viewerState ?? detail.viewerState,
+        currentSituation: payload.currentSituation ?? detail.currentSituation,
+        serverTime: payload.serverTime,
+      };
 
-        startTransition(() => {
-          setDetail((current) => {
-            if (!current || current.room.slug !== activeSlug) {
-              return current;
-            }
+      startTransition(() => {
+        setDetail(nextDetail);
+        setRooms((roomList) =>
+          applyDetailToRooms(
+            updateRoomsWithLatestMessages(roomList, activeSlug, payload.messages),
+            nextDetail,
+          ),
+        );
+        setDetailError(null);
+      });
 
-            return {
-              ...current,
-              messages: nextMessages,
-              serverTime: payload.serverTime,
-            };
-          });
-          setRooms((current) =>
-            updateRoomsWithLatestMessages(current, activeSlug, payload.messages),
-          );
-          setRoomInsights((current) => ({
-            ...current,
-            [activeSlug]: getConversationRelationshipMeta(
-              nextMessages,
-              detail.participants,
-              detail.room.roomType,
-            ),
-          }));
-        });
-
-        if (wasPinned) {
-          window.requestAnimationFrame(() => scrollToBottom("smooth"));
-        }
-      } else {
-        setDetail((current) => {
-          if (!current || current.room.slug !== activeSlug) {
-            return current;
-          }
-
-          return {
-            ...current,
-            serverTime: payload.serverTime,
-          };
-        });
+      if (payload.messages.length > 0 && pinned) {
+        window.requestAnimationFrame(() => scrollToBottom(dramaMode ? "smooth" : "auto"));
       }
-
-      setDetailError(null);
     } catch (error) {
       setDetailError(
-        error instanceof Error ? error.message : "새 메시지를 가져오지 못했어요.",
+        error instanceof Error ? error.message : "실시간 업데이트를 가져오지 못했어요.",
       );
     } finally {
       setIsDetailRefreshing(false);
     }
   };
 
-  const refreshActiveUpdates = useEffectEvent(fetchActiveUpdates);
+  const refreshUpdates = useEffectEvent(fetchUpdates);
 
-  const refreshPreview = async () => {
-    await fetchRooms({ silent: true });
-
-    if (activeSlug && !isCompactLayout) {
-      await fetchRoomDetail(activeSlug, { silent: true });
-    }
-  };
+  const visibleRooms = useMemo(
+    () =>
+      rooms.filter(
+        (room) =>
+          matchesRelationshipFilter(room, relationshipFilter) &&
+          matchesRoomQuery(room, deferredQuery),
+      ),
+    [deferredQuery, relationshipFilter, rooms],
+  );
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 1023px)");
@@ -369,56 +301,23 @@ export function HomeShell({
   }, []);
 
   useEffect(() => {
-    void refreshRooms({ forceSelection: true });
+    setViewerId(getOrCreateViewerId());
+    setDramaMode(readDramaModePreference(true));
+    setMetaExpanded(readInfoPanelPreference(true));
+    setSavedHighlightKeys(readSavedHighlights());
+  }, []);
+
+  useEffect(() => {
+    void refreshRooms(true);
   }, [deferredQuery]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
-      void refreshRooms({ silent: true });
+      void refreshRooms(true);
     }, 5_000);
 
     return () => window.clearInterval(intervalId);
   }, [deferredQuery]);
-
-  useEffect(() => {
-    if (!activeSlug) {
-      setDetail(null);
-      return;
-    }
-
-    if (isCompactLayout) {
-      return;
-    }
-
-    if (detail?.room.slug === activeSlug) {
-      return;
-    }
-
-    void loadRoomDetail(activeSlug);
-  }, [activeSlug, detail?.room.slug, isCompactLayout]);
-
-  useEffect(() => {
-    if (isCompactLayout) {
-      return;
-    }
-
-    const intervalId = window.setInterval(() => {
-      void refreshActiveUpdates();
-    }, 4_000);
-
-    return () => window.clearInterval(intervalId);
-  }, [activeSlug, detail?.room.slug, isCompactLayout]);
-
-  const visibleRooms = rooms.filter((room) => {
-    return (
-      matchesRelationshipFilter(
-        room,
-        relationshipFilter,
-        roomInsights[room.slug] ?? getRoomRelationshipMeta(room),
-      ) &&
-      matchesRoomQuery(room, deferredQuery)
-    );
-  });
 
   useEffect(() => {
     if (!visibleRooms.length) {
@@ -430,29 +329,59 @@ export function HomeShell({
     }
   }, [activeSlug, visibleRooms]);
 
+  useEffect(() => {
+    if (!activeSlug || isCompactLayout) {
+      return;
+    }
+
+    if (detail?.room.slug === activeSlug && detail.viewerState?.deviceId === viewerId) {
+      return;
+    }
+
+    void loadRoomDetail(activeSlug, false);
+  }, [activeSlug, detail?.room.slug, detail?.viewerState?.deviceId, viewerId, isCompactLayout]);
+
+  useEffect(() => {
+    if (isCompactLayout || !activeSlug) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshUpdates();
+    }, 2_500);
+
+    return () => window.clearInterval(intervalId);
+  }, [activeSlug, isCompactLayout]);
+
   const activeRoom =
     visibleRooms.find((room) => room.slug === activeSlug) ??
     rooms.find((room) => room.slug === activeSlug) ??
     null;
+
+  const highlightKey =
+    detail?.highlight && activeRoom
+      ? `${activeRoom.slug}:${detail.highlight.messageId ?? detail.highlight.createdAt}`
+      : null;
 
   return (
     <main className="messenger-stage">
       <div className="messenger-app">
         <MessengerRail roomCount={rooms.length} />
 
-        <section className="flex min-h-0 flex-col overflow-hidden border-r border-[color:var(--line)] bg-[color:var(--sidebar)] lg:max-w-[360px]">
+        <section className="flex min-h-0 flex-col overflow-hidden border-r border-[color:var(--line)] bg-[color:var(--sidebar)] lg:max-w-[332px]">
           <SidebarHeader
             actions={
               <>
                 <ActionChipButton
+                  icon={<RefreshIcon className="h-4 w-4" />}
                   className="flex-1 sm:flex-none"
                   disabled={isRoomsLoading}
                   label={isRoomsLoading ? "불러오는 중" : "새로고침"}
                   onClick={() => {
-                    void fetchRooms();
+                    void fetchRooms(false);
                   }}
                 />
-                <ThemeToggle compact={isCompactLayout} />
+                <ThemeToggle compact />
               </>
             }
             filters={
@@ -472,13 +401,13 @@ export function HomeShell({
             </div>
           ) : null}
 
-          <div className="messenger-scroll flex-1 py-2">
+          <div className="messenger-scroll flex-1 px-2.5 py-2.5 sm:px-3 sm:py-3">
             {isRoomsLoading ? (
-              <div className="space-y-2 px-4 py-4">
-                {Array.from({ length: 7 }).map((_, index) => (
+              <div className="space-y-2.5">
+                {Array.from({ length: 6 }).map((_, index) => (
                   <div
                     key={index}
-                    className="h-[86px] animate-pulse rounded-2xl bg-white/6"
+                    className="h-[124px] animate-pulse rounded-[20px] bg-[var(--sidebar-selected)]"
                   />
                 ))}
               </div>
@@ -489,51 +418,35 @@ export function HomeShell({
                     보이는 채팅방이 없습니다
                   </p>
                   <p className="mt-2 text-[14px] leading-6 text-[var(--subtle-foreground)]">
-                    검색어를 바꾸거나 새 메시지가 올라오길 기다려 보세요.
+                    검색어나 필터를 바꾸거나 새 장면이 열리길 기다려 보세요.
                   </p>
                 </div>
               </div>
             ) : (
-              visibleRooms.map((room) => (
-                <RoomListItem
-                  key={room.id}
-                  active={room.slug === activeRoom?.slug}
-                  onSelect={(slug) => {
-                    if (isCompactLayout) {
-                      router.push(`/rooms/${slug}`);
-                      return;
-                    }
+              <div className="space-y-2.5">
+                {visibleRooms.map((room) => (
+                  <RoomListItem
+                    key={room.id}
+                    active={room.slug === activeRoom?.slug}
+                    onSelect={(slug) => {
+                      if (isCompactLayout) {
+                        router.push(`/rooms/${slug}`);
+                        return;
+                      }
 
-                    setActiveSlug(slug);
-                  }}
-                  relationshipMeta={roomInsights[room.slug]}
-                  room={room}
-                />
-              ))
+                      setActiveSlug(slug);
+                    }}
+                    room={room}
+                  />
+                ))}
+              </div>
             )}
           </div>
         </section>
 
-        <section className="hidden min-h-0 flex-col overflow-hidden bg-[color:var(--thread-pane)] lg:flex">
+        <section className="hidden min-h-0 flex-col overflow-hidden lg:flex">
           {detail && activeRoom ? (
             <>
-              <ConversationHeader
-                actions={
-                  <ActionChipButton
-                    className="min-w-[96px]"
-                    disabled={isDetailLoading}
-                    label={isDetailRefreshing ? "확인 중" : "지금 확인"}
-                    onClick={() => {
-                      void refreshPreview();
-                    }}
-                  />
-                }
-                messages={detail.messages}
-                participants={detail.participants}
-                room={detail.room}
-                serverTime={detail.serverTime}
-              />
-
               {detailError ? (
                 <div className="border-b border-[color:var(--line)] bg-[color:var(--danger-soft)] px-5 py-3 text-[13px] text-[var(--danger)]">
                   {detailError}
@@ -546,7 +459,7 @@ export function HomeShell({
                     {Array.from({ length: 6 }).map((_, index) => (
                       <div
                         key={index}
-                        className={`h-14 animate-pulse rounded-md bg-white/10 ${
+                        className={`h-16 animate-pulse rounded-[20px] bg-[var(--card-surface)] ${
                           index % 2 === 0 ? "mr-auto w-2/3" : "ml-auto w-1/2"
                         }`}
                       />
@@ -554,34 +467,130 @@ export function HomeShell({
                   </div>
                 </div>
               ) : (
-                <ChatTimeline
+                <RoomStoryPane
+                  detail={detail}
+                  dramaMode={dramaMode}
                   emptyCopy="owner 루프가 메시지를 넣으면 여기 바로 반영됩니다."
-                  messages={detail.messages}
-                  participants={detail.participants}
+                  isRefreshing={isDetailRefreshing}
+                  isVoting={isVoting}
+                  metaExpanded={metaExpanded}
+                  onReact={async (messageId, emoji) => {
+                    if (!viewerId) {
+                      return;
+                    }
+
+                    try {
+                      setReactingMessageId(messageId);
+                      const response = await submitMessageReaction(
+                        messageId,
+                        {
+                          emoji,
+                          deviceId: viewerId,
+                        },
+                        n8nConfig,
+                      );
+
+                      startTransition(() => {
+                        setDetail((current) =>
+                          current
+                            ? {
+                                ...current,
+                                messages: current.messages.map((message) =>
+                                  message.id === response.messageId
+                                    ? { ...message, reactions: response.reactions }
+                                    : message,
+                                ),
+                              }
+                            : current,
+                        );
+                      });
+                    } catch (error) {
+                      setDetailError(
+                        error instanceof Error
+                          ? error.message
+                          : "반응을 남기지 못했어요.",
+                      );
+                    } finally {
+                      setReactingMessageId(null);
+                    }
+                  }}
+                  onRefresh={() => {
+                    if (activeSlug) {
+                      void fetchRoomDetail(activeSlug, false);
+                    }
+                  }}
+                  onShareHighlight={async (text) => {
+                    try {
+                      await navigator.clipboard.writeText(text);
+                    } catch {
+                      setDetailError("명대사 복사에 실패했어요.");
+                    }
+                  }}
+                  onToggleDrama={() => {
+                    setDramaMode((current) => {
+                      const next = !current;
+                      writeDramaModePreference(next);
+                      return next;
+                    });
+                  }}
+                  onToggleMeta={() => {
+                    setMetaExpanded((current) => {
+                      const next = !current;
+                      writeInfoPanelPreference(next);
+                      return next;
+                    });
+                  }}
+                  onToggleSaveHighlight={() => {
+                    if (!highlightKey) {
+                      return;
+                    }
+
+                    setSavedHighlightKeys(toggleSavedHighlight(highlightKey));
+                  }}
+                  onVote={async (sceneId, optionId) => {
+                    if (!viewerId || !activeSlug) {
+                      return;
+                    }
+
+                    try {
+                      setIsVoting(true);
+                      const response = await submitSceneVote(
+                        activeSlug,
+                        {
+                          sceneId,
+                          optionId,
+                          deviceId: viewerId,
+                        },
+                        n8nConfig,
+                      );
+
+                      startTransition(() => {
+                        setDetail((current) =>
+                          current
+                            ? {
+                                ...current,
+                                scenePoll: response.scenePoll,
+                                viewerState: response.viewerState,
+                              }
+                            : current,
+                        );
+                      });
+                    } catch (error) {
+                      setDetailError(
+                        error instanceof Error
+                          ? error.message
+                          : "투표를 반영하지 못했어요.",
+                      );
+                    } finally {
+                      setIsVoting(false);
+                    }
+                  }}
+                  reactingMessageId={reactingMessageId}
+                  savedHighlight={highlightKey ? savedHighlightKeys.has(highlightKey) : false}
                   scrollRef={scrollRef}
+                  serverTime={detail.serverTime}
                 />
               )}
-
-              <ReadOnlyComposer
-                cta={
-                  <Link
-                    className="inline-flex min-h-10 w-full items-center justify-center rounded-full bg-[var(--composer-button)] px-4 text-[13px] font-semibold text-[var(--composer-button-text)] sm:w-auto"
-                    href={`/rooms/${detail.room.slug}`}
-                  >
-                    입장
-                  </Link>
-                }
-                isRefreshing={isDetailRefreshing}
-                secondaryAction={
-                  <ActionChipButton
-                    className="w-full sm:w-auto"
-                    label="지금 확인"
-                    onClick={() => {
-                      void refreshPreview();
-                    }}
-                  />
-                }
-              />
             </>
           ) : (
             <ThreadPlaceholder />
